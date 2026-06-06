@@ -37,7 +37,7 @@ function SearchFilterBar({search,setSearch,filterProject,setFilterProject,filter
 }
 
 // ==================== TASK DETAIL ====================
-function TaskDetail({task,onClose,session,user,onUpdate,categories,members,C:c}){
+function TaskDetail({task,onClose,session,user,onUpdate,categories,members,C:c,logActivity}){
   const[comments,setComments]=useState([]);const[subtasks,setSubtasks]=useState([]);
   const[newComment,setNewComment]=useState("");const[newSubtask,setNewSubtask]=useState("");
   const[posting,setPosting]=useState(false);const[status,setStatus]=useState(task.status);
@@ -51,11 +51,11 @@ function TaskDetail({task,onClose,session,user,onUpdate,categories,members,C:c})
     if(cm)setComments(cm);if(st)setSubtasks(st);},[task.id]);
   useEffect(()=>{load();},[load]);
 
-  const addComment=async()=>{if(!newComment.trim())return;setPosting(true);await supabase.from("comments").insert({task_id:task.id,user_id:session.user.id,content:newComment});setNewComment("");await load();setPosting(false);};
+  const addComment=async()=>{if(!newComment.trim())return;setPosting(true);await supabase.from("comments").insert({task_id:task.id,user_id:session.user.id,content:newComment});if(logActivity)await logActivity(task.project_id,"commented","task",task.title,newComment.slice(0,80));setNewComment("");await load();setPosting(false);};
   const addSub=async()=>{if(!newSubtask.trim())return;await supabase.from("subtasks").insert({task_id:task.id,title:newSubtask});setNewSubtask("");await load();};
   const toggleSub=async(id,v)=>{await supabase.from("subtasks").update({completed:!v}).eq("id",id);await load();};
   const delSub=async id=>{await supabase.from("subtasks").delete().eq("id",id);await load();};
-  const updStatus=async s=>{setStatus(s);await supabase.from("tasks").update({status:s,updated_at:new Date().toISOString()}).eq("id",task.id);onUpdate();};
+  const updStatus=async s=>{setStatus(s);await supabase.from("tasks").update({status:s,updated_at:new Date().toISOString()}).eq("id",task.id);const label=s==="done"?"completed":"updated";if(logActivity)await logActivity(task.project_id,label,"task",task.title,`Status → ${s==="todo"?"To Do":s==="progress"?"In Progress":"Done"}`);onUpdate();};
   const updPri=async p=>{setPriority(p);await supabase.from("tasks").update({priority:p}).eq("id",task.id);onUpdate();};
   const updCat=async v=>{setCatId(v);await supabase.from("tasks").update({category_id:v||null}).eq("id",task.id);onUpdate();};
   const updAssignee=async v=>{setAssignee(v);await supabase.from("tasks").update({assignee_id:v||null}).eq("id",task.id);onUpdate();};
@@ -360,6 +360,51 @@ function WelcomeHome({user,projects,tasks,C:c,setActive,setActiveProject,setShow
   </div>);
 }
 
+// ==================== ACTIVITY LOG ====================
+function ActivityLog({C:c,projectId,session,memberProfiles}){
+  const[logs,setLogs]=useState([]);const[loading,setLoading]=useState(true);
+  useEffect(()=>{(async()=>{setLoading(true);
+    let q=supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(50);
+    if(projectId)q=q.eq("project_id",projectId);
+    const{data}=await q;setLogs(data||[]);setLoading(false);})();},[projectId]);
+
+  const profMap={};(memberProfiles||[]).forEach(p=>{profMap[p.id]=p;});
+  const timeAgo=d=>{const m=Math.floor((Date.now()-new Date(d))/60000);if(m<1)return"just now";if(m<60)return`${m}m ago`;const h=Math.floor(m/60);if(h<24)return`${h}h ago`;const dy=Math.floor(h/24);if(dy<7)return`${dy}d ago`;return new Date(d).toLocaleDateString();};
+
+  const actionIcons={created:"✨",completed:"✅",updated:"📝",commented:"💬",invited:"📧",deleted:"🗑️",assigned:"👤",moved:"↔️"};
+  const actionColors={created:c.primary,completed:c.accent,updated:c.accentOrange,commented:"#8b5cf6",invited:c.primary,deleted:c.accentRed,assigned:"#14b8a6",moved:c.accentOrange};
+
+  if(loading)return<div style={{padding:40,textAlign:"center",color:c.textMuted}}>Loading activity...</div>;
+
+  // Group by date
+  const grouped={};logs.forEach(l=>{const d=new Date(l.created_at).toLocaleDateString("en",{weekday:"long",month:"short",day:"numeric"});if(!grouped[d])grouped[d]=[];grouped[d].push(l);});
+
+  return(<div>
+    {logs.length===0?<div style={{padding:48,textAlign:"center",background:c.bgCard,borderRadius:12,border:`1px solid ${c.border}`}}>
+      <div style={{fontSize:40,marginBottom:12}}>📋</div>
+      <h3 style={{color:c.textPrimary,marginBottom:8}}>No activity yet</h3>
+      <p style={{color:c.textMuted,fontSize:13}}>Actions like creating tasks, completing work, and adding comments will show up here.</p></div>
+    :Object.entries(grouped).map(([date,items])=>(
+      <div key={date} style={{marginBottom:24}}>
+        <div style={{fontSize:12,fontWeight:700,color:c.textMuted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10,padding:"0 4px"}}>{date}</div>
+        <div style={{background:c.bgCard,borderRadius:12,border:`1px solid ${c.border}`,overflow:"hidden"}}>
+          {items.map((log,i)=>{const user=profMap[log.user_id];const icon=actionIcons[log.action]||"📌";const color=actionColors[log.action]||c.textSecondary;
+            return(<div key={log.id} style={{padding:"12px 16px",display:"flex",alignItems:"flex-start",gap:12,borderBottom:i<items.length-1?`1px solid ${c.border}`:"none"}}>
+              <div style={{width:32,height:32,borderRadius:8,background:`${color}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,color:c.textPrimary,lineHeight:1.5}}>
+                  <span style={{fontWeight:700}}>{user?.full_name||"Someone"}</span>
+                  <span style={{color:c.textSecondary}}> {log.action} </span>
+                  <span style={{fontWeight:600}}>{log.entity_type}</span>
+                  {log.entity_name&&<span style={{color:c.textSecondary}}> "{log.entity_name}"</span>}
+                </div>
+                {log.details&&<div style={{fontSize:12,color:c.textMuted,marginTop:2}}>{log.details}</div>}
+              </div>
+              <span style={{fontSize:11,color:c.textMuted,flexShrink:0,marginTop:2}}>{timeAgo(log.created_at)}</span>
+            </div>);})}</div></div>))}
+  </div>);
+}
+
 // ==================== CALENDAR ====================
 function CalendarView({tasks,C:c}){const[cur,setCur]=useState(new Date());const y=cur.getFullYear(),m=cur.getMonth();const name=cur.toLocaleString("default",{month:"long",year:"numeric"});const first=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate(),today=new Date();const days=[];for(let i=0;i<first;i++)days.push(null);for(let i=1;i<=dim;i++)days.push(i);const tf=d=>{if(!d)return[];const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return tasks.filter(t=>t.deadline===ds);};const it=d=>d&&today.getFullYear()===y&&today.getMonth()===m&&today.getDate()===d;
   return(<div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}><Btn variant="ghost" C={c} onClick={()=>setCur(new Date(y,m-1,1))}>← Prev</Btn><h2 style={{margin:0,fontSize:18,fontWeight:700,color:c.textPrimary}}>{name}</h2><Btn variant="ghost" C={c} onClick={()=>setCur(new Date(y,m+1,1))}>Next →</Btn></div>
@@ -499,7 +544,7 @@ function LandingPage({onLogin,loading,error}){
 // ==================== SIDEBAR ====================
 function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiveProject,theme,toggleTheme,pendingCount,C:c,onOpenSettings,teamMembers}){
   const[profileOpen,setProfileOpen]=useState(false);const[teamOpen,setTeamOpen]=useState(true);
-  const nav=[{id:"dashboard",icon:"◫",label:"Dashboard"},{id:"board",icon:"☰",label:"Board"},{id:"calendar",icon:"▦",label:"Calendar"},{id:"projects",icon:"◉",label:"Projects"}];
+  const nav=[{id:"dashboard",icon:"◫",label:"Dashboard"},{id:"board",icon:"☰",label:"Board"},{id:"calendar",icon:"▦",label:"Calendar"},{id:"activity",icon:"◔",label:"Activity"},{id:"projects",icon:"◉",label:"Projects"}];
   const menuItems=[
     {icon:"◫",label:"Dashboard",action:()=>{setActive("dashboard");setActiveProject(null);setProfileOpen(false);}},
     {icon:"⚙",label:"Settings",action:()=>{onOpenSettings();setProfileOpen(false);}},
@@ -576,6 +621,9 @@ export default function App(){
 
   const toggleTheme=async()=>{const nt=theme==="dark"?"light":"dark";setTheme(nt);if(session)await supabase.from("profiles").update({theme:nt}).eq("id",session.user.id);};
 
+  const logActivity=async(projectId,action,entityType,entityName,details="")=>{
+    if(!session)return;try{await supabase.from("activity_log").insert({project_id:projectId,user_id:session.user.id,action,entity_type:entityType,entity_name:entityName,details});}catch(e){console.log("log error",e);}};
+
   const loadData=useCallback(async()=>{
     if(!session)return;
     const[{data:p},{data:t},{data:cm},{data:st},{data:cats},{data:mems},{data:profs},{data:inv}]=await Promise.all([
@@ -603,9 +651,9 @@ export default function App(){
   const handleAuth=async(type,email,password,name)=>{setSaving(true);setAuthError("");try{if(type==="signup"){const{data,error}=await supabase.auth.signUp({email,password,options:{data:{full_name:name}}});if(error){setAuthError(error.message);setSaving(false);return;}if(data.user&&!data.session)setAuthError("Check email to confirm.");}else{const{error}=await supabase.auth.signInWithPassword({email,password});if(error){setAuthError(error.message);setSaving(false);return;}}}catch(e){setAuthError("Network error.");}setSaving(false);};
   const handleLogout=async()=>{await supabase.auth.signOut();setSession(null);setUser(null);setProjects([]);setTasks([]);};
 
-  const addProject=async()=>{if(!newProject.name.trim()||!session)return;setSaving(true);const{data}=await supabase.from("projects").insert({name:newProject.name,color:newProject.color,owner_id:session.user.id}).select();if(data?.[0])await supabase.from("project_members").insert({project_id:data[0].id,user_id:session.user.id,role:"owner"});setNewProject({name:"",color:"#2e7cf6"});setShowNewProject(false);await loadData();setSaving(false);};
-  const addTask=async()=>{if(!newTask.title.trim()||!newTask.project_id||!session)return;setSaving(true);await supabase.from("tasks").insert({title:newTask.title,project_id:newTask.project_id,priority:newTask.priority,status:"todo",deadline:newTask.deadline||null,description:newTask.description||"",category_id:newTask.category_id||null,assignee_id:newTask.assignee_id||session.user.id,created_by:session.user.id});setNewTask({title:"",project_id:projects[0]?.id||"",priority:"Medium",deadline:"",description:"",category_id:"",assignee_id:""});setShowNewTask(false);await loadData();setSaving(false);};
-  const handleDrop=status=>async e=>{e.preventDefault();if(!dragId)return;await supabase.from("tasks").update({status,updated_at:new Date().toISOString()}).eq("id",dragId);setDragId(null);await loadData();};
+  const addProject=async()=>{if(!newProject.name.trim()||!session)return;setSaving(true);const{data}=await supabase.from("projects").insert({name:newProject.name,color:newProject.color,owner_id:session.user.id}).select();if(data?.[0]){await supabase.from("project_members").insert({project_id:data[0].id,user_id:session.user.id,role:"owner"});await logActivity(data[0].id,"created","project",newProject.name);}setNewProject({name:"",color:"#2e7cf6"});setShowNewProject(false);await loadData();setSaving(false);};
+  const addTask=async()=>{if(!newTask.title.trim()||!newTask.project_id||!session)return;setSaving(true);await supabase.from("tasks").insert({title:newTask.title,project_id:newTask.project_id,priority:newTask.priority,status:"todo",deadline:newTask.deadline||null,description:newTask.description||"",category_id:newTask.category_id||null,assignee_id:newTask.assignee_id||session.user.id,created_by:session.user.id});await logActivity(newTask.project_id,"created","task",newTask.title,`Priority: ${newTask.priority}`);setNewTask({title:"",project_id:projects[0]?.id||"",priority:"Medium",deadline:"",description:"",category_id:"",assignee_id:""});setShowNewTask(false);await loadData();setSaving(false);};
+  const handleDrop=status=>async e=>{e.preventDefault();if(!dragId)return;const t=tasks.find(x=>x.id===dragId);await supabase.from("tasks").update({status,updated_at:new Date().toISOString()}).eq("id",dragId);if(t){const label=status==="done"?"completed":status==="progress"?"moved":"moved";await logActivity(t.project_id,label,"task",t.title,`Status → ${status==="todo"?"To Do":status==="progress"?"In Progress":"Done"}`);}setDragId(null);await loadData();};
 
   const acceptInvite=async inv=>{await supabase.from("invitations").update({status:"accepted"}).eq("id",inv.id);await supabase.from("project_members").insert({project_id:inv.project_id,user_id:session.user.id,role:"member"});await loadData();};
   const declineInvite=async inv=>{await supabase.from("invitations").update({status:"declined"}).eq("id",inv.id);await loadData();};
@@ -624,8 +672,8 @@ export default function App(){
     <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} activeProject={activeProject} setActiveProject={setActiveProject} theme={theme} toggleTheme={toggleTheme} pendingCount={pendingInvitations.length} C={c} onOpenSettings={()=>setShowSettings(true)} teamMembers={[...new Map((allMembers||[]).map(m=>({...m,full_name:(memberProfiles||[]).find(p=>p.id===m.user_id)?.full_name||"User"})).map(m=>[m.user_id,m])).values()]}/>
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{padding:"16px 32px",borderBottom:`1px solid ${c.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="home"?"Home":active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="calendar"?"Calendar":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
-          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="home"?"Your workspace at a glance":active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="calendar"?"View by deadline":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
+        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="home"?"Home":active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="calendar"?"Calendar":active==="activity"?"Activity":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
+          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="home"?"Your workspace at a glance":active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="calendar"?"View by deadline":active==="activity"?"See what everyone's been up to":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
         <div style={{display:"flex",gap:10}}>
           {["board","dashboard","calendar","project-detail","home"].includes(active)&&projects.length>0&&<Btn onClick={()=>{setNewTask({...newTask,project_id:activeProject?.id||projects[0]?.id,category_id:"",assignee_id:""});setShowNewTask(true);}} C={c}>+ New Task</Btn>}
           {active==="projects"&&<Btn onClick={()=>setShowNewProject(true)} C={c}>+ New Project</Btn>}
@@ -651,6 +699,8 @@ export default function App(){
 
         {active==="calendar"&&projects.length>0&&<CalendarView tasks={filtered} C={c}/>}
 
+        {active==="activity"&&<ActivityLog C={c} session={session} memberProfiles={memberProfiles}/>}
+
         {active==="project-detail"&&activeProject&&<ProjectDetail project={activeProject} tasks={tasks} categories={categories} members={getMembersForProject(activeProject.id)} onBack={()=>{setActiveProject(null);setActive("projects");}} onTaskClick={setSelectedTask} session={session} onUpdate={loadData} C={c}/>}
 
         {active==="projects"&&!activeProject&&<div>{projects.length===0&&<div style={{textAlign:"center",padding:"60px 0"}}><div style={{fontSize:48,marginBottom:16}}>📂</div><h2 style={{color:c.textPrimary,marginBottom:8}}>No projects yet</h2></div>}
@@ -665,7 +715,7 @@ export default function App(){
       </div>
     </div>
 
-    {selectedTask&&<TaskDetail task={selectedTask} onClose={()=>setSelectedTask(null)} session={session} user={user} onUpdate={loadData} categories={categories.filter(ct=>ct.project_id===selectedTask.project_id)} members={getProfilesForProject(selectedTask.project_id)} C={c}/>}
+    {selectedTask&&<TaskDetail task={selectedTask} onClose={()=>setSelectedTask(null)} session={session} user={user} onUpdate={loadData} categories={categories.filter(ct=>ct.project_id===selectedTask.project_id)} members={getProfilesForProject(selectedTask.project_id)} C={c} logActivity={logActivity}/>}
 
     {showNewTask&&<Modal title="Create New Task" onClose={()=>setShowNewTask(false)} C={c}>
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
