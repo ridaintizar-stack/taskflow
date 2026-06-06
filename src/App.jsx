@@ -14,8 +14,7 @@ const PRI = {
   Low: { color: C.accent, bg: "rgba(34,197,94,0.12)" },
 };
 const AVS = ["#2e7cf6","#8b5cf6","#ec4899","#f59e0b","#22c55e","#ef4444"];
-
-const fontFamily = "'IBM Plex Sans', 'Segoe UI', sans-serif";
+const ff = "'IBM Plex Sans', 'Segoe UI', sans-serif";
 
 // ==================== COMPONENTS ====================
 const Avatar = ({ name, color, size = 32 }) => (
@@ -35,11 +34,12 @@ const Btn = ({ children, onClick, variant = "primary", style: s = {}, disabled }
   const vs = {
     primary: { background: disabled ? C.textMuted : C.primary, color: "#fff" },
     ghost: { background: "transparent", color: C.textSecondary, border: `1px solid ${C.border}` },
+    danger: { background: "transparent", color: C.accentRed, border: `1px solid ${C.accentRed}` },
   };
   return <button onClick={onClick} disabled={disabled} style={{
     padding: "9px 18px", borderRadius: 6, fontSize: 13, fontWeight: 600,
     cursor: disabled ? "not-allowed" : "pointer", border: "none", transition: "all 0.15s",
-    display: "inline-flex", alignItems: "center", gap: 6, fontFamily, ...vs[variant], ...s
+    display: "inline-flex", alignItems: "center", gap: 6, fontFamily: ff, ...vs[variant], ...s
   }}>{children}</button>;
 };
 
@@ -49,7 +49,7 @@ const Inp = ({ label, ...p }) => (
       letterSpacing: 0.4, textTransform: "uppercase" }}>{label}</label>}
     <input {...p} style={{ padding: "10px 14px", borderRadius: 6, border: `1px solid ${C.border}`,
       background: C.bgInput, color: C.textPrimary, fontSize: 14, outline: "none",
-      fontFamily, ...(p.style || {}) }}
+      fontFamily: ff, ...(p.style || {}) }}
       onFocus={e => e.target.style.borderColor = C.primary}
       onBlur={e => e.target.style.borderColor = C.border} />
   </div>
@@ -61,14 +61,14 @@ const Sel = ({ label, children, ...p }) => (
       letterSpacing: 0.4, textTransform: "uppercase" }}>{label}</label>}
     <select {...p} style={{ padding: "10px 14px", borderRadius: 6, border: `1px solid ${C.border}`,
       background: C.bgInput, color: C.textPrimary, fontSize: 14, outline: "none",
-      fontFamily, ...(p.style || {}) }}>{children}</select>
+      fontFamily: ff, ...(p.style || {}) }}>{children}</select>
   </div>
 );
 
-const Modal = ({ title, onClose, children }) => (
+const Modal = ({ title, onClose, children, width = 480 }) => (
   <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex",
     alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={onClose}>
-    <div onClick={e => e.stopPropagation()} style={{ width: 480, maxWidth: "90vw", maxHeight: "85vh",
+    <div onClick={e => e.stopPropagation()} style={{ width, maxWidth: "92vw", maxHeight: "88vh",
       overflow: "auto", padding: 32, borderRadius: 12, background: C.bgCard,
       border: `1px solid ${C.border}`, boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
@@ -90,7 +90,199 @@ const StatCard = ({ label, value, sub, color }) => (
   </div>
 );
 
-const KanbanCol = ({ title, count, color, tasks, onDragOver, onDrop, onDragStart }) => (
+// ==================== TASK DETAIL MODAL ====================
+function TaskDetail({ task, onClose, session, user, onUpdate }) {
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [status, setStatus] = useState(task.status);
+
+  const loadComments = useCallback(async () => {
+    const { data } = await supabase.from("comments").select("*").eq("task_id", task.id).order("created_at", { ascending: true });
+    if (data) setComments(data);
+  }, [task.id]);
+
+  useEffect(() => { loadComments(); }, [loadComments]);
+
+  const addComment = async () => {
+    if (!newComment.trim()) return;
+    setPosting(true);
+    await supabase.from("comments").insert({ task_id: task.id, user_id: session.user.id, content: newComment });
+    setNewComment("");
+    await loadComments();
+    setPosting(false);
+  };
+
+  const updateStatus = async (newStatus) => {
+    setStatus(newStatus);
+    await supabase.from("tasks").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", task.id);
+    onUpdate();
+  };
+
+  const deleteTask = async () => {
+    await supabase.from("tasks").delete().eq("id", task.id);
+    onClose();
+    onUpdate();
+  };
+
+  const timeAgo = (date) => {
+    const mins = Math.floor((Date.now() - new Date(date)) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
+  return (
+    <Modal title={task.title} onClose={onClose} width={560}>
+      {/* Task Info */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        <Badge text={task.priority} color={PRI[task.priority]?.color} bg={PRI[task.priority]?.bg} />
+        <Badge text={task.project_name} color={C.primary} bg={C.primaryMuted} />
+        {task.deadline && <span style={{ fontSize: 12, color: C.textSecondary }}>Due: {task.deadline}</span>}
+      </div>
+
+      {/* Status Buttons */}
+      <div style={{ marginBottom: 24 }}>
+        <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, letterSpacing: 0.4,
+          textTransform: "uppercase", display: "block", marginBottom: 8 }}>Status</label>
+        <div style={{ display: "flex", gap: 8 }}>
+          {[{ key: "todo", label: "To Do", color: C.primary }, { key: "progress", label: "In Progress", color: C.accentOrange },
+            { key: "done", label: "Done", color: C.accent }].map(s => (
+            <div key={s.key} onClick={() => updateStatus(s.key)} style={{
+              padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              background: status === s.key ? s.color : "transparent",
+              color: status === s.key ? "#fff" : C.textSecondary,
+              border: `1px solid ${status === s.key ? s.color : C.border}`,
+              transition: "all 0.15s"
+            }}>{s.label}</div>
+          ))}
+        </div>
+      </div>
+
+      {/* Comments Section */}
+      <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20 }}>
+        <h4 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 700, color: C.textSecondary, letterSpacing: 0.3 }}>
+          COMMENTS ({comments.length})
+        </h4>
+
+        {comments.length === 0 && (
+          <p style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>No comments yet. Be the first!</p>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16, maxHeight: 250, overflowY: "auto" }}>
+          {comments.map(c => (
+            <div key={c.id} style={{ display: "flex", gap: 10 }}>
+              <Avatar name={user?.full_name || "U"} color={AVS[c.content.length % AVS.length]} size={28} />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>{user?.full_name || "You"}</span>
+                  <span style={{ fontSize: 11, color: C.textMuted }}>{timeAgo(c.created_at)}</span>
+                </div>
+                <p style={{ margin: 0, fontSize: 13, color: C.textSecondary, lineHeight: 1.5 }}>{c.content}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Add Comment */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <input value={newComment} onChange={e => setNewComment(e.target.value)}
+            placeholder="Write a comment..."
+            onKeyDown={e => e.key === "Enter" && addComment()}
+            style={{ flex: 1, padding: "10px 14px", borderRadius: 6, border: `1px solid ${C.border}`,
+              background: C.bgInput, color: C.textPrimary, fontSize: 13, outline: "none", fontFamily: ff }} />
+          <Btn onClick={addComment} disabled={posting || !newComment.trim()}
+            style={{ padding: "10px 16px" }}>{posting ? "..." : "Post"}</Btn>
+        </div>
+      </div>
+
+      {/* Delete */}
+      <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 20, paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>
+        <Btn variant="danger" onClick={deleteTask} style={{ fontSize: 12 }}>Delete Task</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ==================== CALENDAR VIEW ====================
+function CalendarView({ tasks }) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const monthName = currentDate.toLocaleString("default", { month: "long", year: "numeric" });
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+
+  const days = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+  const getTasksForDay = (day) => {
+    if (!day) return [];
+    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    return tasks.filter(t => t.deadline === dateStr);
+  };
+
+  const isToday = (day) => day && today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <Btn variant="ghost" onClick={() => setCurrentDate(new Date(year, month - 1, 1))}>← Prev</Btn>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: C.textPrimary }}>{monthName}</h2>
+        <Btn variant="ghost" onClick={() => setCurrentDate(new Date(year, month + 1, 1))}>Next →</Btn>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, background: C.border, borderRadius: 10, overflow: "hidden" }}>
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+          <div key={d} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 700,
+            color: C.textMuted, background: C.bgCard, textTransform: "uppercase", letterSpacing: 0.5 }}>{d}</div>
+        ))}
+
+        {days.map((day, i) => {
+          const dayTasks = getTasksForDay(day);
+          return (
+            <div key={i} style={{
+              minHeight: 90, padding: 8, background: day ? C.bgCard : C.bg,
+              position: "relative",
+            }}>
+              {day && (
+                <>
+                  <div style={{
+                    fontSize: 13, fontWeight: isToday(day) ? 800 : 500,
+                    color: isToday(day) ? C.primary : C.textSecondary,
+                    marginBottom: 6,
+                    width: isToday(day) ? 24 : "auto", height: isToday(day) ? 24 : "auto",
+                    borderRadius: "50%", display: isToday(day) ? "flex" : "block",
+                    alignItems: "center", justifyContent: "center",
+                    background: isToday(day) ? C.primaryMuted : "transparent",
+                  }}>{day}</div>
+                  {dayTasks.slice(0, 2).map(t => (
+                    <div key={t.id} style={{
+                      padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600,
+                      marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      background: PRI[t.priority]?.bg, color: PRI[t.priority]?.color,
+                    }}>{t.title}</div>
+                  ))}
+                  {dayTasks.length > 2 && (
+                    <div style={{ fontSize: 10, color: C.textMuted }}>+{dayTasks.length - 2} more</div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ==================== KANBAN COLUMN ====================
+const KanbanCol = ({ title, count, color, tasks, onDragOver, onDrop, onDragStart, onTaskClick }) => (
   <div onDragOver={onDragOver} onDrop={onDrop} style={{
     flex: 1, minWidth: 260, background: C.bgInput, borderRadius: 10,
     border: `1px solid ${C.border}`, display: "flex", flexDirection: "column" }}>
@@ -107,9 +299,15 @@ const KanbanCol = ({ title, count, color, tasks, onDragOver, onDrop, onDragStart
     <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10,
       flex: 1, overflowY: "auto" }}>
       {tasks.map(t => (
-        <div key={t.id} draggable onDragStart={() => onDragStart(t.id)} style={{
-          padding: "14px 16px", borderRadius: 8, background: C.bgCard,
-          border: `1px solid ${C.border}`, cursor: "grab" }}>
+        <div key={t.id} draggable onDragStart={() => onDragStart(t.id)}
+          onClick={() => onTaskClick(t)}
+          style={{
+            padding: "14px 16px", borderRadius: 8, background: C.bgCard,
+            border: `1px solid ${C.border}`, cursor: "grab",
+            transition: "border-color 0.15s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = C.primary}
+          onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary,
             marginBottom: 10, lineHeight: 1.4 }}>{t.title}</div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -119,7 +317,12 @@ const KanbanCol = ({ title, count, color, tasks, onDragOver, onDrop, onDragStart
               <Avatar name={t.assignee_name || "?"} color={AVS[t.title.length % AVS.length]} size={24} />
             </div>
           </div>
-          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 8 }}>{t.project_name}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+            <span style={{ fontSize: 11, color: C.textMuted }}>{t.project_name}</span>
+            {t.comment_count > 0 && (
+              <span style={{ fontSize: 11, color: C.textMuted }}>💬 {t.comment_count}</span>
+            )}
+          </div>
         </div>
       ))}
       {tasks.length === 0 && (
@@ -138,15 +341,14 @@ function LoginScreen({ onLogin, loading, error }) {
   const [pass, setPass] = useState("");
   const [name, setName] = useState("");
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (isSignup) onLogin("signup", email, pass, name);
     else onLogin("signin", email, pass);
   };
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: `linear-gradient(135deg, ${C.bg} 0%, #0c1220 50%, #111827 100%)`, fontFamily }}>
+      background: `linear-gradient(135deg, ${C.bg} 0%, #0c1220 50%, #111827 100%)`, fontFamily: ff }}>
       <div style={{ width: 420, maxWidth: "90vw", padding: "48px 40px", borderRadius: 12,
         background: C.bgCard, border: `1px solid ${C.border}`,
         boxShadow: "0 24px 64px rgba(0,0,0,0.4)" }}>
@@ -165,7 +367,7 @@ function LoginScreen({ onLogin, loading, error }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {isSignup && <Inp label="Full Name" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} />}
           <Inp label="Email" placeholder="you@company.com" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-          <Inp label="Password" placeholder="••••••••" type="password" value={pass} onChange={e => setPass(e.target.value)} />
+          <Inp label="Password" placeholder="Must be 6+ characters" type="password" value={pass} onChange={e => setPass(e.target.value)} />
           <Btn onClick={handleSubmit} disabled={loading}
             style={{ width: "100%", justifyContent: "center", padding: 12, fontSize: 14, marginTop: 4 }}>
             {loading ? "Please wait..." : isSignup ? "Create Account →" : "Sign In →"}
@@ -173,7 +375,7 @@ function LoginScreen({ onLogin, loading, error }) {
         </div>
         <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: C.textMuted }}>
           {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
-          <span onClick={() => { setIsSignup(!isSignup); }}
+          <span onClick={() => setIsSignup(!isSignup)}
             style={{ color: C.primary, cursor: "pointer", fontWeight: 600 }}>
             {isSignup ? "Sign in" : "Sign up"}</span>
         </p>
@@ -187,6 +389,7 @@ function Sidebar({ active, setActive, projects, user, onLogout }) {
   const nav = [
     { id: "dashboard", icon: "◫", label: "Dashboard" },
     { id: "board", icon: "☰", label: "Board" },
+    { id: "calendar", icon: "▦", label: "Calendar" },
     { id: "projects", icon: "◉", label: "Projects" },
   ];
   return (
@@ -251,28 +454,22 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [showNewTask, setShowNewTask] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [newTask, setNewTask] = useState({ title: "", project_id: "", priority: "Medium", deadline: "" });
   const [newProject, setNewProject] = useState({ name: "", color: "#2e7cf6" });
   const [saving, setSaving] = useState(false);
 
-  // Check for existing session on load
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session?.user) {
-        loadProfile(session.user.id);
-      }
+      if (session?.user) loadProfile(session.user.id);
       setLoading(false);
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session?.user) {
-        loadProfile(session.user.id);
-      }
+      if (session?.user) loadProfile(session.user.id);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
@@ -281,40 +478,40 @@ export default function App() {
     if (data) setUser(data);
   };
 
-  // Load projects & tasks
   const loadData = useCallback(async () => {
     if (!session) return;
     const { data: p } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+    const { data: cm } = await supabase.from("comments").select("task_id");
 
     const projectList = p || [];
     setProjects(projectList);
+
+    const commentCounts = {};
+    (cm || []).forEach(c => { commentCounts[c.task_id] = (commentCounts[c.task_id] || 0) + 1; });
 
     const taskList = (t || []).map(task => ({
       ...task,
       project_name: projectList.find(pr => pr.id === task.project_id)?.name || "Unknown",
       assignee_name: user?.full_name || "You",
+      comment_count: commentCounts[task.id] || 0,
     }));
     setTasks(taskList);
   }, [session, user]);
 
   useEffect(() => { if (session && user) loadData(); }, [session, user, loadData]);
 
-  // Auth handlers
   const handleAuth = async (type, email, password, name) => {
     setSaving(true); setAuthError("");
     try {
       if (type === "signup") {
         const { data, error } = await supabase.auth.signUp({
-          email, password,
-          options: { data: { full_name: name } }
+          email, password, options: { data: { full_name: name } }
         });
         if (error) { setAuthError(error.message); setSaving(false); return; }
-        if (data.user && !data.session) {
-          setAuthError("Check your email to confirm your account, then sign in.");
-        }
+        if (data.user && !data.session) setAuthError("Check your email to confirm, then sign in.");
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) { setAuthError(error.message); setSaving(false); return; }
       }
     } catch (e) { setAuthError("Network error. Please try again."); }
@@ -326,15 +523,13 @@ export default function App() {
     setSession(null); setUser(null); setProjects([]); setTasks([]);
   };
 
-  // Create project
   const addProject = async () => {
     if (!newProject.name.trim() || !session) return;
     setSaving(true);
-    const { data, error } = await supabase.from("projects").insert({
+    const { data } = await supabase.from("projects").insert({
       name: newProject.name, color: newProject.color, owner_id: session.user.id
     }).select();
-
-    if (data && data[0]) {
+    if (data?.[0]) {
       await supabase.from("project_members").insert({
         project_id: data[0].id, user_id: session.user.id, role: "owner"
       });
@@ -343,7 +538,6 @@ export default function App() {
     await loadData(); setSaving(false);
   };
 
-  // Create task
   const addTask = async () => {
     if (!newTask.title.trim() || !newTask.project_id || !session) return;
     setSaving(true);
@@ -357,7 +551,6 @@ export default function App() {
     setShowNewTask(false); await loadData(); setSaving(false);
   };
 
-  // Drag & drop update
   const handleDrop = (status) => async (e) => {
     e.preventDefault();
     if (!dragId) return;
@@ -365,10 +558,9 @@ export default function App() {
     setDragId(null); await loadData();
   };
 
-  // Loading screen
   if (loading) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: C.bg, fontFamily }}>
+      background: C.bg, fontFamily: ff }}>
       <div style={{ textAlign: "center" }}>
         <div style={{ width: 48, height: 48, borderRadius: 12, background: C.primary, margin: "0 auto 16px",
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -378,7 +570,6 @@ export default function App() {
     </div>
   );
 
-  // Login screen
   if (!session) return <LoginScreen onLogin={handleAuth} loading={saving} error={authError} />;
 
   const todoTasks = tasks.filter(t => t.status === "todo");
@@ -386,22 +577,23 @@ export default function App() {
   const doneTasks = tasks.filter(t => t.status === "done");
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily, color: C.textPrimary }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: ff, color: C.textPrimary }}>
       <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {/* HEADER */}
         <div style={{ padding: "16px 32px", borderBottom: `1px solid ${C.border}`,
           display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: -0.3 }}>
-              {active === "dashboard" ? "Dashboard" : active === "board" ? "Kanban Board" : "Projects"}</h1>
+              {active === "dashboard" ? "Dashboard" : active === "board" ? "Kanban Board" :
+               active === "calendar" ? "Calendar" : "Projects"}</h1>
             <p style={{ margin: "2px 0 0", fontSize: 13, color: C.textSecondary }}>
-              {active === "dashboard" ? `${tasks.length} total tasks across ${projects.length} projects` :
-               active === "board" ? "Drag and drop tasks between columns" : "Manage all your projects"}</p>
+              {active === "dashboard" ? `${tasks.length} tasks across ${projects.length} projects` :
+               active === "board" ? "Drag tasks · Click for details & comments" :
+               active === "calendar" ? "View tasks by deadline" : "Manage all your projects"}</p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            {(active === "board" || active === "dashboard") && projects.length > 0 && (
+            {["board","dashboard","calendar"].includes(active) && projects.length > 0 && (
               <Btn onClick={() => { setNewTask({ ...newTask, project_id: projects[0]?.id }); setShowNewTask(true); }}>+ New Task</Btn>
             )}
             {active === "projects" && <Btn onClick={() => setShowNewProject(true)}>+ New Project</Btn>}
@@ -411,10 +603,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* CONTENT */}
         <div style={{ flex: 1, overflow: "auto", padding: "24px 32px" }}>
-
-          {/* EMPTY STATE */}
           {projects.length === 0 && active !== "projects" && (
             <div style={{ textAlign: "center", padding: "80px 0" }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>🚀</div>
@@ -434,7 +623,6 @@ export default function App() {
                   sub={tasks.length > 0 ? `${Math.round((doneTasks.length / tasks.length) * 100)}% rate` : "0%"} color={C.accent} />
                 <StatCard label="Projects" value={projects.length} sub="Active projects" />
               </div>
-
               <h3 style={{ fontSize: 14, fontWeight: 700, color: C.textSecondary, marginBottom: 14, letterSpacing: 0.3 }}>RECENT TASKS</h3>
               {tasks.length === 0 ? (
                 <div style={{ padding: 40, textAlign: "center", background: C.bgCard, borderRadius: 10, border: `1px solid ${C.border}` }}>
@@ -443,9 +631,12 @@ export default function App() {
               ) : (
                 <div style={{ background: C.bgCard, borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
                   {tasks.slice(0, 8).map((t, i) => (
-                    <div key={t.id} style={{ padding: "14px 20px", display: "flex", alignItems: "center",
-                      justifyContent: "space-between",
-                      borderBottom: i < Math.min(tasks.length, 8) - 1 ? `1px solid ${C.border}` : "none" }}>
+                    <div key={t.id} onClick={() => setSelectedTask(t)} style={{
+                      padding: "14px 20px", display: "flex", alignItems: "center",
+                      justifyContent: "space-between", cursor: "pointer", transition: "background 0.12s",
+                      borderBottom: i < Math.min(tasks.length, 8) - 1 ? `1px solid ${C.border}` : "none" }}
+                      onMouseEnter={e => e.currentTarget.style.background = C.bgHover}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                         <div style={{ width: 18, height: 18, borderRadius: 4,
                           border: `2px solid ${t.status === "done" ? C.accent : C.border}`,
@@ -460,7 +651,10 @@ export default function App() {
                           <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{t.project_name}</div>
                         </div>
                       </div>
-                      <Badge text={t.priority} color={PRI[t.priority]?.color} bg={PRI[t.priority]?.bg} />
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        {t.comment_count > 0 && <span style={{ fontSize: 11, color: C.textMuted }}>💬 {t.comment_count}</span>}
+                        <Badge text={t.priority} color={PRI[t.priority]?.color} bg={PRI[t.priority]?.bg} />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -472,13 +666,19 @@ export default function App() {
           {active === "board" && projects.length > 0 && (
             <div style={{ display: "flex", gap: 16, height: "calc(100vh - 160px)" }}>
               <KanbanCol title="To Do" count={todoTasks.length} color={C.primary} tasks={todoTasks}
-                onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("todo")} />
+                onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("todo")}
+                onTaskClick={setSelectedTask} />
               <KanbanCol title="In Progress" count={progressTasks.length} color={C.accentOrange} tasks={progressTasks}
-                onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("progress")} />
+                onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("progress")}
+                onTaskClick={setSelectedTask} />
               <KanbanCol title="Done" count={doneTasks.length} color={C.accent} tasks={doneTasks}
-                onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("done")} />
+                onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("done")}
+                onTaskClick={setSelectedTask} />
             </div>
           )}
+
+          {/* CALENDAR */}
+          {active === "calendar" && projects.length > 0 && <CalendarView tasks={tasks} />}
 
           {/* PROJECTS */}
           {active === "projects" && (
@@ -516,6 +716,12 @@ export default function App() {
           )}
         </div>
       </div>
+
+      {/* TASK DETAIL MODAL */}
+      {selectedTask && (
+        <TaskDetail task={selectedTask} onClose={() => setSelectedTask(null)}
+          session={session} user={user} onUpdate={loadData} />
+      )}
 
       {/* NEW TASK MODAL */}
       {showNewTask && (
