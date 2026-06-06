@@ -17,7 +17,7 @@ const AVS=["#2e7cf6","#8b5cf6","#ec4899","#f59e0b","#22c55e","#ef4444","#14b8a6"
 const ff="'IBM Plex Sans','Segoe UI',sans-serif";
 
 // ==================== COMPONENTS ====================
-const Avatar=({name,color,size=32})=>(<div style={{width:size,height:size,borderRadius:"50%",background:color||AVS[0],display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:700,color:"#fff",flexShrink:0}}>{name?.split(" ").map(n=>n[0]).join("").toUpperCase().slice(0,2)}</div>);
+const Avatar=({name,color,size=32,url})=>(url?<img src={url} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",flexShrink:0}} alt=""/>:<div style={{width:size,height:size,borderRadius:"50%",background:color||AVS[0],display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:700,color:"#fff",flexShrink:0}}>{name?.split(" ").map(n=>n[0]).join("").toUpperCase().slice(0,2)}</div>);
 const Badge=({text,color,bg})=>(<span style={{padding:"3px 10px",borderRadius:4,fontSize:11,fontWeight:600,color,background:bg,whiteSpace:"nowrap"}}>{text}</span>);
 const Btn=({children,onClick,variant="primary",style:s={},disabled,C:t})=>{const c=t||DARK;const vs={primary:{background:disabled?c.textMuted:c.primary,color:"#fff"},ghost:{background:"transparent",color:c.textSecondary,border:`1px solid ${c.border}`},danger:{background:"transparent",color:c.accentRed,border:`1px solid ${c.accentRed}`}};return<button onClick={onClick} disabled={disabled} style={{padding:"9px 18px",borderRadius:6,fontSize:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",border:"none",transition:"all 0.15s",display:"inline-flex",alignItems:"center",gap:6,fontFamily:ff,...vs[variant],...s}}>{children}</button>;};
 const Inp=({label,C:t,...p})=>{const c=t||DARK;return(<div style={{display:"flex",flexDirection:"column",gap:5}}>{label&&<label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase"}}>{label}</label>}<input {...p} style={{padding:"10px 14px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:14,outline:"none",fontFamily:ff,...(p.style||{})}} onFocus={e=>e.target.style.borderColor=c.primary} onBlur={e=>e.target.style.borderColor=c.border}/></div>);};
@@ -585,7 +585,7 @@ function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiv
       {profileOpen&&<div style={{position:"absolute",bottom:"100%",left:12,right:12,marginBottom:4,background:c.bgCard,border:`1px solid ${c.border}`,borderRadius:10,boxShadow:"0 8px 32px rgba(0,0,0,0.3)",overflow:"hidden",zIndex:50}}>
         <div style={{padding:"16px 16px 12px",borderBottom:`1px solid ${c.border}`}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <Avatar name={user?.full_name||"U"} color={AVS[0]} size={36}/>
+            <Avatar name={user?.full_name||"U"} color={AVS[0]} size={36} url={user?.avatar_url}/>
             <div><div style={{fontSize:13,fontWeight:700,color:c.textPrimary}}>{user?.full_name||"User"}</div>
               <div style={{fontSize:11,color:c.textMuted}}>{user?.email||""}</div></div></div></div>
         <div style={{padding:"6px"}}>
@@ -595,7 +595,7 @@ function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiv
         </div></div>}
       {profileOpen&&<div style={{position:"fixed",inset:0,zIndex:40}} onClick={()=>setProfileOpen(false)}/>}
       <div onClick={()=>setProfileOpen(!profileOpen)} style={{padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",transition:"background 0.1s"}} onMouseEnter={e=>e.currentTarget.style.background=c.bgHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><Avatar name={user?.full_name||"U"} color={AVS[0]} size={32}/>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><Avatar name={user?.full_name||"U"} color={AVS[0]} size={32} url={user?.avatar_url}/>
           <div><div style={{fontSize:13,fontWeight:600,color:c.textPrimary}}>{user?.full_name||"User"}</div><div style={{fontSize:11,color:c.textMuted}}>Free Plan</div></div></div>
         <span style={{fontSize:12,color:c.textMuted,transform:profileOpen?"rotate(180deg)":"",transition:"transform 0.2s"}}>▲</span></div>
     </div></div>);
@@ -736,29 +736,64 @@ export default function App(){
           <div style={{display:"flex",gap:8}}>{AVS.map(cl=><div key={cl} onClick={()=>setNewProject({...newProject,color:cl})} style={{width:32,height:32,borderRadius:6,background:cl,cursor:"pointer",border:newProject.color===cl?"2px solid #fff":"2px solid transparent"}}/>)}</div></div>
         <div style={{display:"flex",gap:10,marginTop:8}}><Btn onClick={addProject} disabled={saving} C={c} style={{flex:1,justifyContent:"center"}}>{saving?"Creating...":"Create Project"}</Btn><Btn variant="ghost" C={c} onClick={()=>setShowNewProject(false)} style={{flex:1,justifyContent:"center"}}>Cancel</Btn></div></div></Modal>}
 
-    {showSettings&&<Modal title="Settings" onClose={()=>setShowSettings(false)} width={500} C={c}>
-      <div style={{display:"flex",flexDirection:"column",gap:20}}>
-        <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px",borderRadius:10,background:c.bgHover}}>
-          <Avatar name={user?.full_name||"U"} color={AVS[0]} size={48}/>
-          <div><div style={{fontSize:16,fontWeight:700,color:c.textPrimary}}>{user?.full_name||"User"}</div>
-            <div style={{fontSize:13,color:c.textMuted}}>{user?.email||""}</div></div></div>
-        <div>
-          <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Appearance</label>
-          <div style={{display:"flex",gap:10}}>
-            <div onClick={()=>{setTheme("light");if(session)supabase.from("profiles").update({theme:"light"}).eq("id",session.user.id);}} style={{flex:1,padding:"16px",borderRadius:10,cursor:"pointer",textAlign:"center",border:`2px solid ${theme==="light"?c.primary:c.border}`,background:theme==="light"?c.primaryMuted:"transparent"}}>
-              <div style={{fontSize:24,marginBottom:6}}>☀️</div><div style={{fontSize:12,fontWeight:600,color:c.textPrimary}}>Light</div></div>
-            <div onClick={()=>{setTheme("dark");if(session)supabase.from("profiles").update({theme:"dark"}).eq("id",session.user.id);}} style={{flex:1,padding:"16px",borderRadius:10,cursor:"pointer",textAlign:"center",border:`2px solid ${theme==="dark"?c.primary:c.border}`,background:theme==="dark"?c.primaryMuted:"transparent"}}>
-              <div style={{fontSize:24,marginBottom:6}}>🌙</div><div style={{fontSize:12,fontWeight:600,color:c.textPrimary}}>Dark</div></div></div></div>
-        <div>
-          <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Account</label>
-          <div style={{background:c.bgHover,borderRadius:10,overflow:"hidden"}}>
-            <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${c.border}`}}>
-              <span style={{fontSize:13,color:c.textPrimary}}>Plan</span><Badge text="Free" color={c.accent} bg="rgba(34,197,94,0.12)"/></div>
-            <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${c.border}`}}>
-              <span style={{fontSize:13,color:c.textPrimary}}>Projects</span><span style={{fontSize:13,color:c.textSecondary}}>{projects.length}</span></div>
-            <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{fontSize:13,color:c.textPrimary}}>Tasks</span><span style={{fontSize:13,color:c.textSecondary}}>{tasks.length}</span></div></div></div>
-        <Btn variant="danger" C={c} onClick={()=>{handleLogout();setShowSettings(false);}} style={{width:"100%",justifyContent:"center"}}>Log Out</Btn>
-      </div></Modal>}
+    {showSettings&&<Modal title="Profile & Settings" onClose={()=>setShowSettings(false)} width={520} C={c}>
+      {(()=>{const[editName,setEditName]=useState(user?.full_name||"");const[editTitle,setEditTitle]=useState(user?.job_title||"");const[editBio,setEditBio]=useState(user?.bio||"");const[uploading,setUploading]=useState(false);const[savingProfile,setSavingProfile]=useState(false);const[saved,setSaved]=useState(false);
+        const uploadAvatar=async(e)=>{const file=e.target.files?.[0];if(!file||!session)return;setUploading(true);
+          const ext=file.name.split(".").pop();const path=`${session.user.id}/avatar.${ext}`;
+          await supabase.storage.from("avatars").upload(path,file,{upsert:true});
+          const{data:{publicUrl}}=supabase.storage.from("avatars").getPublicUrl(path);
+          await supabase.from("profiles").update({avatar_url:publicUrl+`?t=${Date.now()}`}).eq("id",session.user.id);
+          setUser(prev=>({...prev,avatar_url:publicUrl+`?t=${Date.now()}`}));setUploading(false);};
+        const saveProfile=async()=>{if(!session)return;setSavingProfile(true);
+          await supabase.from("profiles").update({full_name:editName,job_title:editTitle,bio:editBio}).eq("id",session.user.id);
+          setUser(prev=>({...prev,full_name:editName,job_title:editTitle,bio:editBio}));setSaved(true);setTimeout(()=>setSaved(false),2000);setSavingProfile(false);};
+        return(<div style={{display:"flex",flexDirection:"column",gap:20}}>
+          {/* Avatar Section */}
+          <div style={{display:"flex",alignItems:"center",gap:16,padding:"20px",borderRadius:12,background:c.bgHover}}>
+            <div style={{position:"relative"}}>
+              <Avatar name={user?.full_name||"U"} color={AVS[0]} size={64} url={user?.avatar_url}/>
+              <label style={{position:"absolute",bottom:-2,right:-2,width:24,height:24,borderRadius:"50%",background:c.primary,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:12,color:"#fff",border:`2px solid ${c.bgCard}`}}>
+                {uploading?"⏳":"📷"}<input type="file" accept="image/*" onChange={uploadAvatar} style={{display:"none"}}/></label></div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:18,fontWeight:700,color:c.textPrimary}}>{user?.full_name||"User"}</div>
+              {user?.job_title&&<div style={{fontSize:13,color:c.primary,fontWeight:500,marginTop:2}}>{user.job_title}</div>}
+              <div style={{fontSize:12,color:c.textMuted,marginTop:2}}>{user?.email||""}</div></div></div>
+
+          {/* Edit Fields */}
+          <div>
+            <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Profile Information</label>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <Inp label="Full Name" C={c} value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Your name"/>
+              <Inp label="Job Title" C={c} value={editTitle} onChange={e=>setEditTitle(e.target.value)} placeholder="e.g. Product Designer, Developer, CEO"/>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase"}}>Bio</label>
+                <textarea value={editBio} onChange={e=>setEditBio(e.target.value)} placeholder="Tell your team a bit about yourself..." rows={3}
+                  style={{padding:"10px 14px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:13,outline:"none",fontFamily:ff,resize:"vertical"}}/></div>
+              <Btn onClick={saveProfile} disabled={savingProfile} C={c} style={{width:"100%",justifyContent:"center"}}>
+                {savingProfile?"Saving...":saved?"✓ Saved!":"Save Profile"}</Btn>
+            </div></div>
+
+          {/* Appearance */}
+          <div>
+            <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Appearance</label>
+            <div style={{display:"flex",gap:10}}>
+              <div onClick={()=>{setTheme("light");if(session)supabase.from("profiles").update({theme:"light"}).eq("id",session.user.id);}} style={{flex:1,padding:"16px",borderRadius:10,cursor:"pointer",textAlign:"center",border:`2px solid ${theme==="light"?c.primary:c.border}`,background:theme==="light"?c.primaryMuted:"transparent"}}>
+                <div style={{fontSize:24,marginBottom:6}}>☀️</div><div style={{fontSize:12,fontWeight:600,color:c.textPrimary}}>Light</div></div>
+              <div onClick={()=>{setTheme("dark");if(session)supabase.from("profiles").update({theme:"dark"}).eq("id",session.user.id);}} style={{flex:1,padding:"16px",borderRadius:10,cursor:"pointer",textAlign:"center",border:`2px solid ${theme==="dark"?c.primary:c.border}`,background:theme==="dark"?c.primaryMuted:"transparent"}}>
+                <div style={{fontSize:24,marginBottom:6}}>🌙</div><div style={{fontSize:12,fontWeight:600,color:c.textPrimary}}>Dark</div></div></div></div>
+
+          {/* Account Stats */}
+          <div>
+            <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Account</label>
+            <div style={{background:c.bgHover,borderRadius:10,overflow:"hidden"}}>
+              <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${c.border}`}}>
+                <span style={{fontSize:13,color:c.textPrimary}}>Plan</span><Badge text="Free" color={c.accent} bg="rgba(34,197,94,0.12)"/></div>
+              <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${c.border}`}}>
+                <span style={{fontSize:13,color:c.textPrimary}}>Projects</span><span style={{fontSize:13,color:c.textSecondary}}>{projects.length}</span></div>
+              <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:13,color:c.textPrimary}}>Tasks</span><span style={{fontSize:13,color:c.textSecondary}}>{tasks.length}</span></div></div></div>
+          <Btn variant="danger" C={c} onClick={()=>{handleLogout();setShowSettings(false);}} style={{width:"100%",justifyContent:"center"}}>Log Out</Btn>
+        </div>);})()}
+    </Modal>}
   </div>);
 }
