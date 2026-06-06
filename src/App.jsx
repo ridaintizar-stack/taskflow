@@ -39,16 +39,30 @@ function SearchFilterBar({search,setSearch,filterProject,setFilterProject,filter
 // ==================== TASK DETAIL ====================
 function TaskDetail({task,onClose,session,user,onUpdate,categories,members,C:c,logActivity}){
   const[comments,setComments]=useState([]);const[subtasks,setSubtasks]=useState([]);
+  const[labels,setLabels]=useState([]);const[taskLabels,setTaskLabels]=useState([]);
+  const[timeEntries,setTimeEntries]=useState([]);const[attachments,setAttachments]=useState([]);
   const[newComment,setNewComment]=useState("");const[newSubtask,setNewSubtask]=useState("");
   const[posting,setPosting]=useState(false);const[status,setStatus]=useState(task.status);
   const[desc,setDesc]=useState(task.description||"");const[editingDesc,setEditingDesc]=useState(false);
   const[priority,setPriority]=useState(task.priority);const[catId,setCatId]=useState(task.category_id||"");
   const[assignee,setAssignee]=useState(task.assignee_id||"");
+  const[newTime,setNewTime]=useState({minutes:"",description:""});const[showTimeForm,setShowTimeForm]=useState(false);
+  const[uploading,setUploading]=useState(false);
+  const[isRecurring,setIsRecurring]=useState(task.is_recurring||false);const[recPattern,setRecPattern]=useState(task.recurrence_pattern||"");
+  const[showLabelForm,setShowLabelForm]=useState(false);const[newLabel,setNewLabel]=useState({name:"",color:"#2e7cf6"});
+  const[activeTab,setActiveTab]=useState("details");
 
   const load=useCallback(async()=>{
-    const{data:cm}=await supabase.from("comments").select("*").eq("task_id",task.id).order("created_at",{ascending:true});
-    const{data:st}=await supabase.from("subtasks").select("*").eq("task_id",task.id).order("created_at",{ascending:true});
-    if(cm)setComments(cm);if(st)setSubtasks(st);},[task.id]);
+    const[{data:cm},{data:st},{data:lb},{data:tl},{data:te},{data:at}]=await Promise.all([
+      supabase.from("comments").select("*").eq("task_id",task.id).order("created_at",{ascending:true}),
+      supabase.from("subtasks").select("*").eq("task_id",task.id).order("created_at",{ascending:true}),
+      supabase.from("labels").select("*").eq("project_id",task.project_id),
+      supabase.from("task_labels").select("*").eq("task_id",task.id),
+      supabase.from("time_entries").select("*").eq("task_id",task.id).order("created_at",{ascending:false}),
+      supabase.from("attachments").select("*").eq("task_id",task.id).order("created_at",{ascending:false}),
+    ]);
+    if(cm)setComments(cm);if(st)setSubtasks(st);if(lb)setLabels(lb);if(tl)setTaskLabels(tl);if(te)setTimeEntries(te);if(at)setAttachments(at);
+  },[task.id,task.project_id]);
   useEffect(()=>{load();},[load]);
 
   const addComment=async()=>{if(!newComment.trim())return;setPosting(true);await supabase.from("comments").insert({task_id:task.id,user_id:session.user.id,content:newComment});if(logActivity)await logActivity(task.project_id,"commented","task",task.title,newComment.slice(0,80));setNewComment("");await load();setPosting(false);};
@@ -62,48 +76,95 @@ function TaskDetail({task,onClose,session,user,onUpdate,categories,members,C:c,l
   const saveDesc=async()=>{await supabase.from("tasks").update({description:desc}).eq("id",task.id);setEditingDesc(false);onUpdate();};
   const delTask=async()=>{await supabase.from("tasks").delete().eq("id",task.id);onClose();onUpdate();};
   const timeAgo=d=>{const m=Math.floor((Date.now()-new Date(d))/60000);if(m<1)return"just now";if(m<60)return`${m}m ago`;const h=Math.floor(m/60);if(h<24)return`${h}h ago`;return`${Math.floor(h/24)}d ago`;};
+
+  // Labels
+  const addLabel=async()=>{if(!newLabel.name.trim())return;const{data}=await supabase.from("labels").insert({project_id:task.project_id,name:newLabel.name,color:newLabel.color}).select();if(data?.[0])await supabase.from("task_labels").insert({task_id:task.id,label_id:data[0].id});setNewLabel({name:"",color:"#2e7cf6"});setShowLabelForm(false);await load();};
+  const toggleLabel=async(labelId)=>{const exists=taskLabels.find(tl=>tl.label_id===labelId);if(exists)await supabase.from("task_labels").delete().eq("task_id",task.id).eq("label_id",labelId);else await supabase.from("task_labels").insert({task_id:task.id,label_id:labelId});await load();};
+
+  // Time
+  const addTimeEntry=async()=>{const mins=parseInt(newTime.minutes);if(!mins||mins<=0)return;await supabase.from("time_entries").insert({task_id:task.id,user_id:session.user.id,duration_minutes:mins,description:newTime.description});setNewTime({minutes:"",description:""});setShowTimeForm(false);await load();};
+  const totalMins=timeEntries.reduce((s,e)=>s+e.duration_minutes,0);const totalHrs=Math.floor(totalMins/60);const remMins=totalMins%60;
+
+  // Attachments
+  const uploadFile=async e=>{const file=e.target.files?.[0];if(!file)return;setUploading(true);const path=`${task.project_id}/${task.id}/${Date.now()}_${file.name}`;
+    await supabase.storage.from("attachments").upload(path,file);const{data:{publicUrl}}=supabase.storage.from("attachments").getPublicUrl(path);
+    await supabase.from("attachments").insert({task_id:task.id,file_name:file.name,file_url:publicUrl,file_size:file.size,uploaded_by:session.user.id});setUploading(false);await load();};
+  const delAttachment=async(id,url)=>{await supabase.from("attachments").delete().eq("id",id);await load();};
+  const formatSize=b=>{if(b<1024)return b+"B";if(b<1048576)return(b/1024).toFixed(1)+"KB";return(b/1048576).toFixed(1)+"MB";};
+
+  // Recurring
+  const toggleRecurring=async(v)=>{setIsRecurring(v);await supabase.from("tasks").update({is_recurring:v,recurrence_pattern:v?recPattern:""}).eq("id",task.id);onUpdate();};
+  const saveRecurrence=async()=>{await supabase.from("tasks").update({recurrence_pattern:recPattern}).eq("id",task.id);onUpdate();};
+
   const cd=subtasks.filter(s=>s.completed).length,pct=subtasks.length>0?Math.round((cd/subtasks.length)*100):0;
   const assignedMember=members.find(m=>m.id===assignee);
+  const tabs=[{id:"details",label:"Details"},{id:"checklist",label:`Checklist${subtasks.length?` (${cd}/${subtasks.length})`:""}`},{id:"files",label:`Files${attachments.length?` (${attachments.length})`:""}`},{id:"time",label:`Time${totalMins?` (${totalHrs}h${remMins}m)`:""}`},{id:"comments",label:`Comments${comments.length?` (${comments.length})`:""}`}];
 
-  return(<Modal title={task.title} onClose={onClose} width={600} C={c}>
-    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
+  return(<Modal title={task.title} onClose={onClose} width={640} C={c}>
+    {/* Info Row */}
+    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
       <Badge text={task.project_name} color={c.primary} bg={c.primaryMuted}/>
       {task.category_name&&<Badge text={task.category_name} color={c.accentOrange} bg="rgba(245,158,11,0.12)"/>}
+      {taskLabels.map(tl=>{const lb=labels.find(l=>l.id===tl.label_id);return lb?<Badge key={tl.label_id} text={lb.name} color={lb.color} bg={`${lb.color}20`}/>:null;})}
       {task.deadline&&<span style={{fontSize:12,color:c.textSecondary}}>📅 {task.deadline}</span>}
-      {assignedMember&&<div style={{display:"flex",alignItems:"center",gap:6}}><Avatar name={assignedMember.full_name} color={AVS[assignedMember.full_name.length%AVS.length]} size={20}/><span style={{fontSize:12,color:c.textSecondary}}>{assignedMember.full_name}</span></div>}
+      {isRecurring&&<Badge text={`🔄 ${recPattern}`} color="#8b5cf6" bg="rgba(139,92,246,0.12)"/>}
+      {assignedMember&&<div style={{display:"flex",alignItems:"center",gap:4}}><Avatar name={assignedMember.full_name} color={AVS[assignedMember.full_name.length%AVS.length]} size={18} url={assignedMember.avatar_url}/><span style={{fontSize:12,color:c.textSecondary}}>{assignedMember.full_name}</span></div>}
+      {totalMins>0&&<span style={{fontSize:12,color:c.textSecondary}}>⏱️ {totalHrs}h {remMins}m</span>}
     </div>
 
-    <div style={{display:"flex",gap:16,marginBottom:16,flexWrap:"wrap"}}>
-      <div style={{flex:1,minWidth:200}}><label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase",display:"block",marginBottom:6}}>Status</label>
-        <div style={{display:"flex",gap:6}}>{[{key:"todo",label:"To Do",color:c.primary},{key:"progress",label:"In Progress",color:c.accentOrange},{key:"done",label:"Done",color:c.accent}].map(s=>(
-          <div key={s.key} onClick={()=>updStatus(s.key)} style={{padding:"5px 12px",borderRadius:5,fontSize:12,fontWeight:600,cursor:"pointer",background:status===s.key?s.color:"transparent",color:status===s.key?"#fff":c.textSecondary,border:`1px solid ${status===s.key?s.color:c.border}`}}>{s.label}</div>))}</div></div>
-      <div style={{flex:1,minWidth:200}}><label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase",display:"block",marginBottom:6}}>Priority</label>
-        <div style={{display:"flex",gap:6}}>{"High Medium Low".split(" ").map(p=>(
-          <div key={p} onClick={()=>updPri(p)} style={{padding:"5px 12px",borderRadius:5,fontSize:12,fontWeight:600,cursor:"pointer",background:priority===p?PRI[p].bg:"transparent",color:priority===p?PRI[p].color:c.textSecondary,border:`1px solid ${priority===p?PRI[p].color:c.border}`}}>{p}</div>))}</div></div>
-    </div>
+    {/* Status & Priority */}
+    <div style={{display:"flex",gap:16,marginBottom:12,flexWrap:"wrap"}}>
+      <div style={{flex:1,minWidth:180}}><label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase",display:"block",marginBottom:6}}>Status</label>
+        <div style={{display:"flex",gap:5}}>{[{key:"todo",label:"To Do",color:c.primary},{key:"progress",label:"In Progress",color:c.accentOrange},{key:"done",label:"Done",color:c.accent}].map(s=>(
+          <div key={s.key} onClick={()=>updStatus(s.key)} style={{padding:"4px 10px",borderRadius:5,fontSize:11,fontWeight:600,cursor:"pointer",background:status===s.key?s.color:"transparent",color:status===s.key?"#fff":c.textSecondary,border:`1px solid ${status===s.key?s.color:c.border}`}}>{s.label}</div>))}</div></div>
+      <div style={{flex:1,minWidth:180}}><label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase",display:"block",marginBottom:6}}>Priority</label>
+        <div style={{display:"flex",gap:5}}>{"High Medium Low".split(" ").map(p=>(
+          <div key={p} onClick={()=>updPri(p)} style={{padding:"4px 10px",borderRadius:5,fontSize:11,fontWeight:600,cursor:"pointer",background:priority===p?PRI[p].bg:"transparent",color:priority===p?PRI[p].color:c.textSecondary,border:`1px solid ${priority===p?PRI[p].color:c.border}`}}>{p}</div>))}</div></div></div>
 
-    {/* Assignee */}
-    <div style={{marginBottom:16}}><label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase",display:"block",marginBottom:6}}>Assigned To</label>
-      <select value={assignee} onChange={e=>updAssignee(e.target.value)} style={{padding:"8px 12px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:13,fontFamily:ff,outline:"none"}}>
-        <option value="">Unassigned</option>{members.map(m=><option key={m.id} value={m.id}>{m.full_name}{m.id===session.user.id?" (You)":""}</option>)}</select></div>
+    {/* Assign & Category */}
+    <div style={{display:"flex",gap:12,marginBottom:12,flexWrap:"wrap"}}>
+      <div style={{flex:1}}><label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase",display:"block",marginBottom:4}}>Assigned To</label>
+        <select value={assignee} onChange={e=>updAssignee(e.target.value)} style={{width:"100%",padding:"7px 10px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:12,fontFamily:ff,outline:"none"}}><option value="">Unassigned</option>{members.map(m=><option key={m.id} value={m.id}>{m.full_name}{m.id===session.user.id?" (You)":""}</option>)}</select></div>
+      {categories.length>0&&<div style={{flex:1}}><label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase",display:"block",marginBottom:4}}>Category</label>
+        <select value={catId} onChange={e=>updCat(e.target.value)} style={{width:"100%",padding:"7px 10px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:12,fontFamily:ff,outline:"none"}}><option value="">None</option>{categories.map(ct=><option key={ct.id} value={ct.id}>{ct.name}</option>)}</select></div>}</div>
 
-    {categories.length>0&&<div style={{marginBottom:16}}><label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase",display:"block",marginBottom:6}}>Category</label>
-      <select value={catId} onChange={e=>updCat(e.target.value)} style={{padding:"8px 12px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:13,fontFamily:ff,outline:"none"}}><option value="">No category</option>{categories.map(ct=><option key={ct.id} value={ct.id}>{ct.name}</option>)}</select></div>}
+    {/* Labels */}
+    <div style={{marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+        <label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase"}}>Labels</label>
+        <span onClick={()=>setShowLabelForm(!showLabelForm)} style={{fontSize:11,color:c.primary,cursor:"pointer"}}>{showLabelForm?"Cancel":"+ Add"}</span></div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {labels.map(lb=>{const active=taskLabels.some(tl=>tl.label_id===lb.id);return(
+          <div key={lb.id} onClick={()=>toggleLabel(lb.id)} style={{padding:"4px 10px",borderRadius:12,fontSize:11,fontWeight:600,cursor:"pointer",background:active?`${lb.color}25`:"transparent",color:active?lb.color:c.textMuted,border:`1px solid ${active?lb.color:c.border}`,transition:"all 0.15s"}}>{lb.name}{active?" ✓":""}</div>);})}
+        {labels.length===0&&!showLabelForm&&<span style={{fontSize:12,color:c.textMuted}}>No labels yet</span>}</div>
+      {showLabelForm&&<div style={{display:"flex",gap:8,marginTop:8,alignItems:"center"}}>
+        <input value={newLabel.name} onChange={e=>setNewLabel({...newLabel,name:e.target.value})} placeholder="Label name" style={{flex:1,padding:"6px 10px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:12,outline:"none",fontFamily:ff}}/>
+        <div style={{display:"flex",gap:4}}>{AVS.slice(0,6).map(cl=><div key={cl} onClick={()=>setNewLabel({...newLabel,color:cl})} style={{width:20,height:20,borderRadius:4,background:cl,cursor:"pointer",border:newLabel.color===cl?"2px solid #fff":"2px solid transparent"}}/>)}</div>
+        <Btn onClick={addLabel} C={c} style={{padding:"5px 10px",fontSize:11}}>Add</Btn></div>}</div>
 
-    {/* Description */}
-    <div style={{marginBottom:20,borderTop:`1px solid ${c.border}`,paddingTop:16}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+    {/* Recurring */}
+    <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+      <label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase"}}>Recurring</label>
+      <div onClick={()=>toggleRecurring(!isRecurring)} style={{width:36,height:20,borderRadius:10,background:isRecurring?c.primary:c.border,cursor:"pointer",position:"relative",transition:"background 0.2s"}}>
+        <div style={{width:16,height:16,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:isRecurring?18:2,transition:"left 0.2s"}}/></div>
+      {isRecurring&&<select value={recPattern} onChange={e=>{setRecPattern(e.target.value);}} onBlur={saveRecurrence} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:11,fontFamily:ff,outline:"none"}}>
+        <option value="">Select...</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="monthly">Monthly</option></select>}</div>
+
+    {/* Tabs */}
+    <div style={{display:"flex",gap:0,borderBottom:`1px solid ${c.border}`,marginBottom:16}}>
+      {tabs.map(t=><div key={t.id} onClick={()=>setActiveTab(t.id)} style={{padding:"10px 14px",fontSize:12,fontWeight:600,cursor:"pointer",color:activeTab===t.id?c.primary:c.textMuted,borderBottom:activeTab===t.id?`2px solid ${c.primary}`:"2px solid transparent",transition:"all 0.15s"}}>{t.label}</div>)}</div>
+
+    {/* Details Tab */}
+    {activeTab==="details"&&<div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
         <label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase"}}>Description</label>
         {!editingDesc&&<span onClick={()=>setEditingDesc(true)} style={{fontSize:11,color:c.primary,cursor:"pointer"}}>Edit</span>}</div>
       {editingDesc?<div><textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Add details..." rows={4} style={{width:"100%",padding:"10px 14px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:13,outline:"none",fontFamily:ff,resize:"vertical",boxSizing:"border-box"}}/>
         <div style={{display:"flex",gap:8,marginTop:8}}><Btn onClick={saveDesc} C={c} style={{padding:"6px 14px",fontSize:12}}>Save</Btn><Btn variant="ghost" C={c} onClick={()=>{setDesc(task.description||"");setEditingDesc(false);}} style={{padding:"6px 14px",fontSize:12}}>Cancel</Btn></div></div>
-      :<p style={{margin:0,fontSize:13,color:desc?c.textSecondary:c.textMuted,lineHeight:1.6,cursor:"pointer"}} onClick={()=>setEditingDesc(true)}>{desc||"Click to add description..."}</p>}</div>
+      :<p style={{margin:0,fontSize:13,color:desc?c.textSecondary:c.textMuted,lineHeight:1.6,cursor:"pointer"}} onClick={()=>setEditingDesc(true)}>{desc||"Click to add description..."}</p>}</div>}
 
-    {/* Subtasks */}
-    <div style={{marginBottom:20,borderTop:`1px solid ${c.border}`,paddingTop:16}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <label style={{fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase"}}>Checklist {subtasks.length>0&&`(${cd}/${subtasks.length})`}</label>
-        {subtasks.length>0&&<span style={{fontSize:11,color:c.textMuted}}>{pct}%</span>}</div>
+    {/* Checklist Tab */}
+    {activeTab==="checklist"&&<div>
       {subtasks.length>0&&<div style={{height:4,borderRadius:2,background:c.bgHover,marginBottom:12,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,borderRadius:2,background:pct===100?c.accent:c.primary,transition:"width 0.3s"}}/></div>}
       <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>{subtasks.map(s=>(
         <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0"}}>
@@ -112,23 +173,57 @@ function TaskDetail({task,onClose,session,user,onUpdate,categories,members,C:c,l
           <span onClick={()=>delSub(s.id)} style={{fontSize:14,color:c.textMuted,cursor:"pointer",opacity:0.5}}>✕</span></div>))}</div>
       <div style={{display:"flex",gap:8}}><input value={newSubtask} onChange={e=>setNewSubtask(e.target.value)} placeholder="Add checklist item..." onKeyDown={e=>e.key==="Enter"&&addSub()}
         style={{flex:1,padding:"8px 12px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:12,outline:"none",fontFamily:ff}}/>
-        <Btn onClick={addSub} C={c} style={{padding:"6px 12px",fontSize:12}}>Add</Btn></div></div>
+        <Btn onClick={addSub} C={c} style={{padding:"6px 12px",fontSize:12}}>Add</Btn></div></div>}
 
-    {/* Comments */}
-    <div style={{borderTop:`1px solid ${c.border}`,paddingTop:16}}>
-      <h4 style={{margin:"0 0 12px",fontSize:11,fontWeight:700,color:c.textMuted,letterSpacing:0.5,textTransform:"uppercase"}}>Comments ({comments.length})</h4>
+    {/* Files Tab */}
+    {activeTab==="files"&&<div>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+        {attachments.length===0&&<p style={{color:c.textMuted,fontSize:13}}>No files attached yet.</p>}
+        {attachments.map(a=>(
+          <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,background:c.bgHover}}>
+            <span style={{fontSize:20}}>📎</span>
+            <div style={{flex:1,minWidth:0}}>
+              <a href={a.file_url} target="_blank" rel="noreferrer" style={{fontSize:13,fontWeight:600,color:c.primary,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.file_name}</a>
+              <span style={{fontSize:11,color:c.textMuted}}>{formatSize(a.file_size)} · {timeAgo(a.created_at)}</span></div>
+            <span onClick={()=>delAttachment(a.id)} style={{fontSize:14,color:c.textMuted,cursor:"pointer"}}>✕</span></div>))}
+      </div>
+      <label style={{display:"inline-flex",alignItems:"center",gap:8,padding:"8px 14px",borderRadius:6,border:`1px solid ${c.border}`,cursor:"pointer",fontSize:12,fontWeight:600,color:c.textSecondary,background:c.bgInput}}>
+        {uploading?"⏳ Uploading...":"📎 Attach File"}<input type="file" onChange={uploadFile} style={{display:"none"}}/></label></div>}
+
+    {/* Time Tab */}
+    {activeTab==="time"&&<div>
+      {totalMins>0&&<div style={{padding:"14px 16px",borderRadius:8,background:c.primaryMuted,marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <span style={{fontSize:13,fontWeight:600,color:c.primary}}>Total Time Logged</span>
+        <span style={{fontSize:18,fontWeight:800,color:c.primary}}>{totalHrs}h {remMins}m</span></div>}
+      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
+        {timeEntries.map(e=>(
+          <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:6,background:c.bgHover}}>
+            <span style={{fontSize:14,fontWeight:700,color:c.primary,minWidth:50}}>{Math.floor(e.duration_minutes/60)}h {e.duration_minutes%60}m</span>
+            <span style={{flex:1,fontSize:12,color:c.textSecondary}}>{e.description||"No description"}</span>
+            <span style={{fontSize:11,color:c.textMuted}}>{e.logged_at}</span></div>))}</div>
+      {!showTimeForm?<Btn onClick={()=>setShowTimeForm(true)} variant="ghost" C={c} style={{fontSize:12}}>+ Log Time</Btn>:
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <input value={newTime.minutes} onChange={e=>setNewTime({...newTime,minutes:e.target.value})} placeholder="Minutes" type="number" style={{width:80,padding:"7px 10px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:12,outline:"none",fontFamily:ff}}/>
+          <input value={newTime.description} onChange={e=>setNewTime({...newTime,description:e.target.value})} placeholder="What did you work on?" onKeyDown={e=>e.key==="Enter"&&addTimeEntry()}
+            style={{flex:1,padding:"7px 10px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:12,outline:"none",fontFamily:ff}}/>
+          <Btn onClick={addTimeEntry} C={c} style={{padding:"6px 12px",fontSize:12}}>Log</Btn>
+          <Btn onClick={()=>setShowTimeForm(false)} variant="ghost" C={c} style={{padding:"6px 10px",fontSize:12}}>✕</Btn></div>}</div>}
+
+    {/* Comments Tab */}
+    {activeTab==="comments"&&<div>
       {comments.length===0&&<p style={{color:c.textMuted,fontSize:13,marginBottom:12}}>No comments yet.</p>}
-      <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:14,maxHeight:200,overflowY:"auto"}}>{comments.map(cm=>{
+      <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:14,maxHeight:250,overflowY:"auto"}}>{comments.map(cm=>{
         const author=members.find(m=>m.id===cm.user_id);
         return(<div key={cm.id} style={{display:"flex",gap:10}}>
-          <Avatar name={author?.full_name||user?.full_name||"U"} color={AVS[(author?.full_name||"U").length%AVS.length]} size={26}/>
+          <Avatar name={author?.full_name||user?.full_name||"U"} color={AVS[(author?.full_name||"U").length%AVS.length]} size={26} url={author?.avatar_url}/>
           <div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
             <span style={{fontSize:12,fontWeight:600,color:c.textPrimary}}>{author?.full_name||"You"}</span>
             <span style={{fontSize:11,color:c.textMuted}}>{timeAgo(cm.created_at)}</span></div>
             <p style={{margin:0,fontSize:13,color:c.textSecondary,lineHeight:1.5}}>{cm.content}</p></div></div>);})}</div>
       <div style={{display:"flex",gap:8}}><input value={newComment} onChange={e=>setNewComment(e.target.value)} placeholder="Write a comment..." onKeyDown={e=>e.key==="Enter"&&addComment()}
         style={{flex:1,padding:"9px 12px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:13,outline:"none",fontFamily:ff}}/>
-        <Btn onClick={addComment} disabled={posting||!newComment.trim()} C={c} style={{padding:"9px 14px"}}>{posting?"...":"Post"}</Btn></div></div>
+        <Btn onClick={addComment} disabled={posting||!newComment.trim()} C={c} style={{padding:"9px 14px"}}>{posting?"...":"Post"}</Btn></div></div>}
+
     <div style={{borderTop:`1px solid ${c.border}`,marginTop:20,paddingTop:14,display:"flex",justifyContent:"flex-end"}}><Btn variant="danger" C={c} onClick={delTask} style={{fontSize:12}}>Delete Task</Btn></div>
   </Modal>);
 }
