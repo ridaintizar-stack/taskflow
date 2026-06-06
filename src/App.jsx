@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase.js";
 
-// ==================== STYLES ====================
 const C = {
   bg: "#0f1724", bgCard: "#182234", bgHover: "#1e2d45", bgInput: "#131d2e",
   border: "#263654", primary: "#2e7cf6", primaryMuted: "rgba(46,124,246,0.12)",
@@ -16,7 +15,6 @@ const PRI = {
 const AVS = ["#2e7cf6","#8b5cf6","#ec4899","#f59e0b","#22c55e","#ef4444"];
 const ff = "'IBM Plex Sans', 'Segoe UI', sans-serif";
 
-// ==================== COMPONENTS ====================
 const Avatar = ({ name, color, size = 32 }) => (
   <div style={{ width: size, height: size, borderRadius: "50%", background: color || AVS[0],
     display: "flex", alignItems: "center", justifyContent: "center",
@@ -24,17 +22,16 @@ const Avatar = ({ name, color, size = 32 }) => (
     {name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
   </div>
 );
-
 const Badge = ({ text, color, bg }) => (
   <span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600,
     color, background: bg, whiteSpace: "nowrap" }}>{text}</span>
 );
-
 const Btn = ({ children, onClick, variant = "primary", style: s = {}, disabled }) => {
   const vs = {
     primary: { background: disabled ? C.textMuted : C.primary, color: "#fff" },
     ghost: { background: "transparent", color: C.textSecondary, border: `1px solid ${C.border}` },
     danger: { background: "transparent", color: C.accentRed, border: `1px solid ${C.accentRed}` },
+    small: { background: C.primary, color: "#fff", padding: "5px 12px", fontSize: 12 },
   };
   return <button onClick={onClick} disabled={disabled} style={{
     padding: "9px 18px", borderRadius: 6, fontSize: 13, fontWeight: 600,
@@ -42,7 +39,6 @@ const Btn = ({ children, onClick, variant = "primary", style: s = {}, disabled }
     display: "inline-flex", alignItems: "center", gap: 6, fontFamily: ff, ...vs[variant], ...s
   }}>{children}</button>;
 };
-
 const Inp = ({ label, ...p }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
     {label && <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary,
@@ -54,7 +50,6 @@ const Inp = ({ label, ...p }) => (
       onBlur={e => e.target.style.borderColor = C.border} />
   </div>
 );
-
 const Sel = ({ label, children, ...p }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
     {label && <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary,
@@ -64,7 +59,6 @@ const Sel = ({ label, children, ...p }) => (
       fontFamily: ff, ...(p.style || {}) }}>{children}</select>
   </div>
 );
-
 const Modal = ({ title, onClose, children, width = 480 }) => (
   <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex",
     alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={onClose}>
@@ -79,7 +73,6 @@ const Modal = ({ title, onClose, children, width = 480 }) => (
     </div>
   </div>
 );
-
 const StatCard = ({ label, value, sub, color }) => (
   <div style={{ flex: "1 1 200px", padding: "22px 24px", borderRadius: 10,
     background: C.bgCard, border: `1px solid ${C.border}` }}>
@@ -90,93 +83,257 @@ const StatCard = ({ label, value, sub, color }) => (
   </div>
 );
 
+// ==================== SEARCH & FILTER BAR ====================
+function SearchFilterBar({ search, setSearch, filterProject, setFilterProject, filterPriority, setFilterPriority, filterStatus, setFilterStatus, projects }) {
+  return (
+    <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ position: "relative", flex: "1 1 220px" }}>
+        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+          fontSize: 14, color: C.textMuted }}>🔍</span>
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search tasks..."
+          style={{ width: "100%", padding: "9px 14px 9px 36px", borderRadius: 6,
+            border: `1px solid ${C.border}`, background: C.bgInput, color: C.textPrimary,
+            fontSize: 13, outline: "none", fontFamily: ff, boxSizing: "border-box" }} />
+      </div>
+      <select value={filterProject} onChange={e => setFilterProject(e.target.value)}
+        style={{ padding: "9px 12px", borderRadius: 6, border: `1px solid ${C.border}`,
+          background: C.bgInput, color: C.textSecondary, fontSize: 12, fontFamily: ff, outline: "none" }}>
+        <option value="">All Projects</option>
+        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+      <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)}
+        style={{ padding: "9px 12px", borderRadius: 6, border: `1px solid ${C.border}`,
+          background: C.bgInput, color: C.textSecondary, fontSize: 12, fontFamily: ff, outline: "none" }}>
+        <option value="">All Priorities</option>
+        <option value="High">High</option>
+        <option value="Medium">Medium</option>
+        <option value="Low">Low</option>
+      </select>
+      <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+        style={{ padding: "9px 12px", borderRadius: 6, border: `1px solid ${C.border}`,
+          background: C.bgInput, color: C.textSecondary, fontSize: 12, fontFamily: ff, outline: "none" }}>
+        <option value="">All Status</option>
+        <option value="todo">To Do</option>
+        <option value="progress">In Progress</option>
+        <option value="done">Done</option>
+      </select>
+      {(search || filterProject || filterPriority || filterStatus) && (
+        <Btn variant="ghost" onClick={() => { setSearch(""); setFilterProject(""); setFilterPriority(""); setFilterStatus(""); }}
+          style={{ padding: "8px 12px", fontSize: 12 }}>Clear</Btn>
+      )}
+    </div>
+  );
+}
+
 // ==================== TASK DETAIL MODAL ====================
-function TaskDetail({ task, onClose, session, user, onUpdate }) {
+function TaskDetail({ task, onClose, session, user, onUpdate, projects }) {
   const [comments, setComments] = useState([]);
+  const [subtasks, setSubtasks] = useState([]);
   const [newComment, setNewComment] = useState("");
+  const [newSubtask, setNewSubtask] = useState("");
   const [posting, setPosting] = useState(false);
   const [status, setStatus] = useState(task.status);
+  const [desc, setDesc] = useState(task.description || "");
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [priority, setPriority] = useState(task.priority);
 
   const loadComments = useCallback(async () => {
     const { data } = await supabase.from("comments").select("*").eq("task_id", task.id).order("created_at", { ascending: true });
     if (data) setComments(data);
   }, [task.id]);
 
-  useEffect(() => { loadComments(); }, [loadComments]);
+  const loadSubtasks = useCallback(async () => {
+    const { data } = await supabase.from("subtasks").select("*").eq("task_id", task.id).order("created_at", { ascending: true });
+    if (data) setSubtasks(data);
+  }, [task.id]);
+
+  useEffect(() => { loadComments(); loadSubtasks(); }, [loadComments, loadSubtasks]);
 
   const addComment = async () => {
     if (!newComment.trim()) return;
     setPosting(true);
     await supabase.from("comments").insert({ task_id: task.id, user_id: session.user.id, content: newComment });
-    setNewComment("");
-    await loadComments();
-    setPosting(false);
+    setNewComment(""); await loadComments(); setPosting(false);
   };
 
-  const updateStatus = async (newStatus) => {
-    setStatus(newStatus);
-    await supabase.from("tasks").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", task.id);
+  const addSubtask = async () => {
+    if (!newSubtask.trim()) return;
+    await supabase.from("subtasks").insert({ task_id: task.id, title: newSubtask });
+    setNewSubtask(""); await loadSubtasks();
+  };
+
+  const toggleSubtask = async (id, completed) => {
+    await supabase.from("subtasks").update({ completed: !completed }).eq("id", id);
+    await loadSubtasks();
+  };
+
+  const deleteSubtask = async (id) => {
+    await supabase.from("subtasks").delete().eq("id", id);
+    await loadSubtasks();
+  };
+
+  const updateStatus = async (s) => {
+    setStatus(s);
+    await supabase.from("tasks").update({ status: s, updated_at: new Date().toISOString() }).eq("id", task.id);
     onUpdate();
+  };
+
+  const updatePriority = async (p) => {
+    setPriority(p);
+    await supabase.from("tasks").update({ priority: p }).eq("id", task.id);
+    onUpdate();
+  };
+
+  const saveDesc = async () => {
+    await supabase.from("tasks").update({ description: desc }).eq("id", task.id);
+    setEditingDesc(false); onUpdate();
   };
 
   const deleteTask = async () => {
     await supabase.from("tasks").delete().eq("id", task.id);
-    onClose();
-    onUpdate();
+    onClose(); onUpdate();
   };
 
-  const timeAgo = (date) => {
-    const mins = Math.floor((Date.now() - new Date(date)) / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
+  const timeAgo = (d) => {
+    const m = Math.floor((Date.now() - new Date(d)) / 60000);
+    if (m < 1) return "just now"; if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
   };
+
+  const completedSubtasks = subtasks.filter(s => s.completed).length;
+  const subtaskPct = subtasks.length > 0 ? Math.round((completedSubtasks / subtasks.length) * 100) : 0;
 
   return (
-    <Modal title={task.title} onClose={onClose} width={560}>
-      {/* Task Info */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        <Badge text={task.priority} color={PRI[task.priority]?.color} bg={PRI[task.priority]?.bg} />
+    <Modal title={task.title} onClose={onClose} width={600}>
+      {/* Info Row */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
         <Badge text={task.project_name} color={C.primary} bg={C.primaryMuted} />
-        {task.deadline && <span style={{ fontSize: 12, color: C.textSecondary }}>Due: {task.deadline}</span>}
+        {task.deadline && <span style={{ fontSize: 12, color: C.textSecondary }}>📅 Due: {task.deadline}</span>}
       </div>
 
-      {/* Status Buttons */}
-      <div style={{ marginBottom: 24 }}>
-        <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, letterSpacing: 0.4,
-          textTransform: "uppercase", display: "block", marginBottom: 8 }}>Status</label>
-        <div style={{ display: "flex", gap: 8 }}>
+      {/* Status */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5,
+          textTransform: "uppercase", display: "block", marginBottom: 6 }}>Status</label>
+        <div style={{ display: "flex", gap: 6 }}>
           {[{ key: "todo", label: "To Do", color: C.primary }, { key: "progress", label: "In Progress", color: C.accentOrange },
             { key: "done", label: "Done", color: C.accent }].map(s => (
             <div key={s.key} onClick={() => updateStatus(s.key)} style={{
-              padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              padding: "5px 12px", borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: "pointer",
               background: status === s.key ? s.color : "transparent",
               color: status === s.key ? "#fff" : C.textSecondary,
-              border: `1px solid ${status === s.key ? s.color : C.border}`,
-              transition: "all 0.15s"
-            }}>{s.label}</div>
+              border: `1px solid ${status === s.key ? s.color : C.border}` }}>{s.label}</div>
           ))}
         </div>
       </div>
 
-      {/* Comments Section */}
-      <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20 }}>
-        <h4 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 700, color: C.textSecondary, letterSpacing: 0.3 }}>
-          COMMENTS ({comments.length})
-        </h4>
+      {/* Priority */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5,
+          textTransform: "uppercase", display: "block", marginBottom: 6 }}>Priority</label>
+        <div style={{ display: "flex", gap: 6 }}>
+          {["High", "Medium", "Low"].map(p => (
+            <div key={p} onClick={() => updatePriority(p)} style={{
+              padding: "5px 12px", borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              background: priority === p ? PRI[p].bg : "transparent",
+              color: priority === p ? PRI[p].color : C.textSecondary,
+              border: `1px solid ${priority === p ? PRI[p].color : C.border}` }}>{p}</div>
+          ))}
+        </div>
+      </div>
 
-        {comments.length === 0 && (
-          <p style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>No comments yet. Be the first!</p>
+      {/* Description */}
+      <div style={{ marginBottom: 20, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>Description</label>
+          {!editingDesc && <span onClick={() => setEditingDesc(true)}
+            style={{ fontSize: 11, color: C.primary, cursor: "pointer" }}>Edit</span>}
+        </div>
+        {editingDesc ? (
+          <div>
+            <textarea value={desc} onChange={e => setDesc(e.target.value)}
+              placeholder="Add a detailed description..."
+              rows={4} style={{ width: "100%", padding: "10px 14px", borderRadius: 6,
+                border: `1px solid ${C.border}`, background: C.bgInput, color: C.textPrimary,
+                fontSize: 13, outline: "none", fontFamily: ff, resize: "vertical",
+                boxSizing: "border-box" }} />
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <Btn onClick={saveDesc} style={{ padding: "6px 14px", fontSize: 12 }}>Save</Btn>
+              <Btn variant="ghost" onClick={() => { setDesc(task.description || ""); setEditingDesc(false); }}
+                style={{ padding: "6px 14px", fontSize: 12 }}>Cancel</Btn>
+            </div>
+          </div>
+        ) : (
+          <p style={{ margin: 0, fontSize: 13, color: desc ? C.textSecondary : C.textMuted, lineHeight: 1.6,
+            cursor: "pointer" }} onClick={() => setEditingDesc(true)}>
+            {desc || "Click to add a description..."}
+          </p>
+        )}
+      </div>
+
+      {/* Subtasks */}
+      <div style={{ marginBottom: 20, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
+            Checklist {subtasks.length > 0 && `(${completedSubtasks}/${subtasks.length})`}
+          </label>
+          {subtasks.length > 0 && (
+            <span style={{ fontSize: 11, color: C.textMuted }}>{subtaskPct}%</span>
+          )}
+        </div>
+
+        {subtasks.length > 0 && (
+          <div style={{ height: 4, borderRadius: 2, background: C.bgHover, marginBottom: 12, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${subtaskPct}%`, borderRadius: 2,
+              background: subtaskPct === 100 ? C.accent : C.primary, transition: "width 0.3s" }} />
+          </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16, maxHeight: 250, overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+          {subtasks.map(s => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0" }}>
+              <div onClick={() => toggleSubtask(s.id, s.completed)} style={{
+                width: 18, height: 18, borderRadius: 4, flexShrink: 0, cursor: "pointer",
+                border: `2px solid ${s.completed ? C.accent : C.border}`,
+                background: s.completed ? C.accent : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 10, color: "#fff", transition: "all 0.15s"
+              }}>{s.completed && "✓"}</div>
+              <span style={{ flex: 1, fontSize: 13, color: s.completed ? C.textMuted : C.textPrimary,
+                textDecoration: s.completed ? "line-through" : "none" }}>{s.title}</span>
+              <span onClick={() => deleteSubtask(s.id)}
+                style={{ fontSize: 14, color: C.textMuted, cursor: "pointer", opacity: 0.5 }}>✕</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <input value={newSubtask} onChange={e => setNewSubtask(e.target.value)}
+            placeholder="Add a checklist item..."
+            onKeyDown={e => e.key === "Enter" && addSubtask()}
+            style={{ flex: 1, padding: "8px 12px", borderRadius: 6, border: `1px solid ${C.border}`,
+              background: C.bgInput, color: C.textPrimary, fontSize: 12, outline: "none", fontFamily: ff }} />
+          <Btn onClick={addSubtask} style={{ padding: "6px 12px", fontSize: 12 }}>Add</Btn>
+        </div>
+      </div>
+
+      {/* Comments */}
+      <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+        <h4 style={{ margin: "0 0 12px", fontSize: 11, fontWeight: 700, color: C.textMuted,
+          letterSpacing: 0.5, textTransform: "uppercase" }}>Comments ({comments.length})</h4>
+
+        {comments.length === 0 && (
+          <p style={{ color: C.textMuted, fontSize: 13, marginBottom: 12 }}>No comments yet.</p>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14, maxHeight: 200, overflowY: "auto" }}>
           {comments.map(c => (
             <div key={c.id} style={{ display: "flex", gap: 10 }}>
-              <Avatar name={user?.full_name || "U"} color={AVS[c.content.length % AVS.length]} size={28} />
+              <Avatar name={user?.full_name || "U"} color={AVS[c.content.length % AVS.length]} size={26} />
               <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>{user?.full_name || "You"}</span>
                   <span style={{ fontSize: 11, color: C.textMuted }}>{timeAgo(c.created_at)}</span>
                 </div>
@@ -186,93 +343,66 @@ function TaskDetail({ task, onClose, session, user, onUpdate }) {
           ))}
         </div>
 
-        {/* Add Comment */}
         <div style={{ display: "flex", gap: 8 }}>
           <input value={newComment} onChange={e => setNewComment(e.target.value)}
-            placeholder="Write a comment..."
-            onKeyDown={e => e.key === "Enter" && addComment()}
-            style={{ flex: 1, padding: "10px 14px", borderRadius: 6, border: `1px solid ${C.border}`,
+            placeholder="Write a comment..." onKeyDown={e => e.key === "Enter" && addComment()}
+            style={{ flex: 1, padding: "9px 12px", borderRadius: 6, border: `1px solid ${C.border}`,
               background: C.bgInput, color: C.textPrimary, fontSize: 13, outline: "none", fontFamily: ff }} />
           <Btn onClick={addComment} disabled={posting || !newComment.trim()}
-            style={{ padding: "10px 16px" }}>{posting ? "..." : "Post"}</Btn>
+            style={{ padding: "9px 14px" }}>{posting ? "..." : "Post"}</Btn>
         </div>
       </div>
 
       {/* Delete */}
-      <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 20, paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 20, paddingTop: 14, display: "flex", justifyContent: "flex-end" }}>
         <Btn variant="danger" onClick={deleteTask} style={{ fontSize: 12 }}>Delete Task</Btn>
       </div>
     </Modal>
   );
 }
 
-// ==================== CALENDAR VIEW ====================
+// ==================== CALENDAR ====================
 function CalendarView({ tasks }) {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const monthName = currentDate.toLocaleString("default", { month: "long", year: "numeric" });
-
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const [cur, setCur] = useState(new Date());
+  const y = cur.getFullYear(), m = cur.getMonth();
+  const name = cur.toLocaleString("default", { month: "long", year: "numeric" });
+  const first = new Date(y, m, 1).getDay(), dim = new Date(y, m + 1, 0).getDate();
   const today = new Date();
-
-  const days = [];
-  for (let i = 0; i < firstDay; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(i);
-
-  const getTasksForDay = (day) => {
-    if (!day) return [];
-    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return tasks.filter(t => t.deadline === dateStr);
+  const days = []; for (let i = 0; i < first; i++) days.push(null); for (let i = 1; i <= dim; i++) days.push(i);
+  const tasksFor = (d) => {
+    if (!d) return [];
+    const ds = `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    return tasks.filter(t => t.deadline === ds);
   };
-
-  const isToday = (day) => day && today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
-
+  const isToday = (d) => d && today.getFullYear()===y && today.getMonth()===m && today.getDate()===d;
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <Btn variant="ghost" onClick={() => setCurrentDate(new Date(year, month - 1, 1))}>← Prev</Btn>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: C.textPrimary }}>{monthName}</h2>
-        <Btn variant="ghost" onClick={() => setCurrentDate(new Date(year, month + 1, 1))}>Next →</Btn>
+        <Btn variant="ghost" onClick={() => setCur(new Date(y, m-1, 1))}>← Prev</Btn>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: C.textPrimary }}>{name}</h2>
+        <Btn variant="ghost" onClick={() => setCur(new Date(y, m+1, 1))}>Next →</Btn>
       </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, background: C.border, borderRadius: 10, overflow: "hidden" }}>
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1, background: C.border, borderRadius: 10, overflow: "hidden" }}>
+        {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
           <div key={d} style={{ padding: "10px 8px", textAlign: "center", fontSize: 11, fontWeight: 700,
             color: C.textMuted, background: C.bgCard, textTransform: "uppercase", letterSpacing: 0.5 }}>{d}</div>
         ))}
-
         {days.map((day, i) => {
-          const dayTasks = getTasksForDay(day);
+          const dt = tasksFor(day);
           return (
-            <div key={i} style={{
-              minHeight: 90, padding: 8, background: day ? C.bgCard : C.bg,
-              position: "relative",
-            }}>
-              {day && (
-                <>
-                  <div style={{
-                    fontSize: 13, fontWeight: isToday(day) ? 800 : 500,
-                    color: isToday(day) ? C.primary : C.textSecondary,
-                    marginBottom: 6,
-                    width: isToday(day) ? 24 : "auto", height: isToday(day) ? 24 : "auto",
-                    borderRadius: "50%", display: isToday(day) ? "flex" : "block",
-                    alignItems: "center", justifyContent: "center",
-                    background: isToday(day) ? C.primaryMuted : "transparent",
-                  }}>{day}</div>
-                  {dayTasks.slice(0, 2).map(t => (
-                    <div key={t.id} style={{
-                      padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600,
-                      marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      background: PRI[t.priority]?.bg, color: PRI[t.priority]?.color,
-                    }}>{t.title}</div>
-                  ))}
-                  {dayTasks.length > 2 && (
-                    <div style={{ fontSize: 10, color: C.textMuted }}>+{dayTasks.length - 2} more</div>
-                  )}
-                </>
-              )}
+            <div key={i} style={{ minHeight: 90, padding: 8, background: day ? C.bgCard : C.bg }}>
+              {day && (<>
+                <div style={{ fontSize: 13, fontWeight: isToday(day)?800:500, color: isToday(day)?C.primary:C.textSecondary,
+                  marginBottom: 6, width: isToday(day)?24:"auto", height: isToday(day)?24:"auto", borderRadius: "50%",
+                  display: isToday(day)?"flex":"block", alignItems: "center", justifyContent: "center",
+                  background: isToday(day)?C.primaryMuted:"transparent" }}>{day}</div>
+                {dt.slice(0,2).map(t => (
+                  <div key={t.id} style={{ padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600,
+                    marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    background: PRI[t.priority]?.bg, color: PRI[t.priority]?.color }}>{t.title}</div>
+                ))}
+                {dt.length > 2 && <div style={{ fontSize: 10, color: C.textMuted }}>+{dt.length-2} more</div>}
+              </>)}
             </div>
           );
         })}
@@ -296,20 +426,16 @@ const KanbanCol = ({ title, count, color, tasks, onDragOver, onDrop, onDragStart
       <span style={{ background: C.bgHover, color: C.textSecondary, fontSize: 11,
         fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{count}</span>
     </div>
-    <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10,
-      flex: 1, overflowY: "auto" }}>
+    <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10, flex: 1, overflowY: "auto" }}>
       {tasks.map(t => (
-        <div key={t.id} draggable onDragStart={() => onDragStart(t.id)}
-          onClick={() => onTaskClick(t)}
-          style={{
-            padding: "14px 16px", borderRadius: 8, background: C.bgCard,
-            border: `1px solid ${C.border}`, cursor: "grab",
-            transition: "border-color 0.15s",
-          }}
+        <div key={t.id} draggable onDragStart={() => onDragStart(t.id)} onClick={() => onTaskClick(t)}
+          style={{ padding: "14px 16px", borderRadius: 8, background: C.bgCard,
+            border: `1px solid ${C.border}`, cursor: "grab", transition: "border-color 0.15s" }}
           onMouseEnter={e => e.currentTarget.style.borderColor = C.primary}
           onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary,
-            marginBottom: 10, lineHeight: 1.4 }}>{t.title}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, marginBottom: 10, lineHeight: 1.4 }}>{t.title}</div>
+          {t.description && <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.description}</div>}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Badge text={t.priority} color={PRI[t.priority]?.color} bg={PRI[t.priority]?.bg} />
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -319,66 +445,48 @@ const KanbanCol = ({ title, count, color, tasks, onDragOver, onDrop, onDragStart
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
             <span style={{ fontSize: 11, color: C.textMuted }}>{t.project_name}</span>
-            {t.comment_count > 0 && (
-              <span style={{ fontSize: 11, color: C.textMuted }}>💬 {t.comment_count}</span>
-            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              {t.subtask_count > 0 && <span style={{ fontSize: 11, color: C.textMuted }}>☑ {t.subtask_done}/{t.subtask_count}</span>}
+              {t.comment_count > 0 && <span style={{ fontSize: 11, color: C.textMuted }}>💬 {t.comment_count}</span>}
+            </div>
           </div>
         </div>
       ))}
-      {tasks.length === 0 && (
-        <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 13 }}>
-          No tasks here yet
-        </div>
-      )}
+      {tasks.length === 0 && <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 13 }}>No tasks here</div>}
     </div>
   </div>
 );
 
-// ==================== LOGIN SCREEN ====================
+// ==================== LOGIN ====================
 function LoginScreen({ onLogin, loading, error }) {
   const [isSignup, setIsSignup] = useState(false);
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-  const [name, setName] = useState("");
-
-  const handleSubmit = () => {
-    if (isSignup) onLogin("signup", email, pass, name);
-    else onLogin("signin", email, pass);
-  };
-
+  const [email, setEmail] = useState(""); const [pass, setPass] = useState(""); const [name, setName] = useState("");
+  const go = () => { if (isSignup) onLogin("signup", email, pass, name); else onLogin("signin", email, pass); };
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
       background: `linear-gradient(135deg, ${C.bg} 0%, #0c1220 50%, #111827 100%)`, fontFamily: ff }}>
       <div style={{ width: 420, maxWidth: "90vw", padding: "48px 40px", borderRadius: 12,
-        background: C.bgCard, border: `1px solid ${C.border}`,
-        boxShadow: "0 24px 64px rgba(0,0,0,0.4)" }}>
+        background: C.bgCard, border: `1px solid ${C.border}`, boxShadow: "0 24px 64px rgba(0,0,0,0.4)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: C.primary,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18, fontWeight: 800, color: "#fff" }}>T</div>
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800, color: "#fff" }}>T</div>
           <span style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary, letterSpacing: -0.5 }}>TaskFlow</span>
         </div>
         <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 32, marginTop: 4 }}>
           {isSignup ? "Create your account to get started" : "Sign in to your workspace"}</p>
-
-        {error && <div style={{ padding: "10px 14px", borderRadius: 6,
-          background: "rgba(239,68,68,0.12)", color: C.accentRed, fontSize: 13, marginBottom: 16 }}>{error}</div>}
-
+        {error && <div style={{ padding: "10px 14px", borderRadius: 6, background: "rgba(239,68,68,0.12)",
+          color: C.accentRed, fontSize: 13, marginBottom: 16 }}>{error}</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {isSignup && <Inp label="Full Name" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} />}
           <Inp label="Email" placeholder="you@company.com" type="email" value={email} onChange={e => setEmail(e.target.value)} />
           <Inp label="Password" placeholder="Must be 6+ characters" type="password" value={pass} onChange={e => setPass(e.target.value)} />
-          <Btn onClick={handleSubmit} disabled={loading}
-            style={{ width: "100%", justifyContent: "center", padding: 12, fontSize: 14, marginTop: 4 }}>
-            {loading ? "Please wait..." : isSignup ? "Create Account →" : "Sign In →"}
-          </Btn>
+          <Btn onClick={go} disabled={loading} style={{ width: "100%", justifyContent: "center", padding: 12, fontSize: 14, marginTop: 4 }}>
+            {loading ? "Please wait..." : isSignup ? "Create Account →" : "Sign In →"}</Btn>
         </div>
         <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: C.textMuted }}>
           {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
-          <span onClick={() => setIsSignup(!isSignup)}
-            style={{ color: C.primary, cursor: "pointer", fontWeight: 600 }}>
-            {isSignup ? "Sign in" : "Sign up"}</span>
-        </p>
+          <span onClick={() => setIsSignup(!isSignup)} style={{ color: C.primary, cursor: "pointer", fontWeight: 600 }}>
+            {isSignup ? "Sign in" : "Sign up"}</span></p>
       </div>
     </div>
   );
@@ -395,16 +503,13 @@ function Sidebar({ active, setActive, projects, user, onLogout }) {
   return (
     <div style={{ width: 240, background: C.bgCard, borderRight: `1px solid ${C.border}`,
       display: "flex", flexDirection: "column", flexShrink: 0, height: "100vh" }}>
-      <div style={{ padding: "20px 20px 16px", display: "flex", alignItems: "center", gap: 10,
-        borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ padding: "20px 20px 16px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ width: 32, height: 32, borderRadius: 8, background: C.primary,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 16, fontWeight: 800, color: "#fff" }}>T</div>
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#fff" }}>T</div>
         <span style={{ fontSize: 17, fontWeight: 700, color: C.textPrimary, letterSpacing: -0.3 }}>TaskFlow</span>
       </div>
       <div style={{ padding: "16px 12px 8px" }}>
-        <p style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: 1,
-          textTransform: "uppercase", padding: "0 8px", marginBottom: 6 }}>Main Menu</p>
+        <p style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: 1, textTransform: "uppercase", padding: "0 8px", marginBottom: 6 }}>Main Menu</p>
         {nav.map(n => (
           <div key={n.id} onClick={() => setActive(n.id)} style={{
             padding: "10px 12px", borderRadius: 6, display: "flex", alignItems: "center", gap: 10,
@@ -417,18 +522,15 @@ function Sidebar({ active, setActive, projects, user, onLogout }) {
         ))}
       </div>
       <div style={{ padding: "8px 12px", flex: 1, overflowY: "auto" }}>
-        <p style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: 1,
-          textTransform: "uppercase", padding: "0 8px", marginBottom: 6 }}>Projects</p>
+        <p style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: 1, textTransform: "uppercase", padding: "0 8px", marginBottom: 6 }}>Projects</p>
         {projects.map(p => (
-          <div key={p.id} style={{ padding: "8px 12px", borderRadius: 6, display: "flex",
-            alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 2 }}>
+          <div key={p.id} style={{ padding: "8px 12px", borderRadius: 6, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 2 }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: p.color }} />
             <span style={{ fontSize: 13, color: C.textSecondary }}>{p.name}</span>
           </div>
         ))}
       </div>
-      <div style={{ padding: "16px 20px", borderTop: `1px solid ${C.border}`,
-        display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ padding: "16px 20px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Avatar name={user?.full_name || "U"} color={AVS[0]} size={28} />
           <div>
@@ -456,25 +558,26 @@ export default function App() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [dragId, setDragId] = useState(null);
-  const [newTask, setNewTask] = useState({ title: "", project_id: "", priority: "Medium", deadline: "" });
+  const [newTask, setNewTask] = useState({ title: "", project_id: "", priority: "Medium", deadline: "", description: "" });
   const [newProject, setNewProject] = useState({ name: "", color: "#2e7cf6" });
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filterProject, setFilterProject] = useState("");
+  const [filterPriority, setFilterPriority] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) loadProfile(session.user.id);
-      setLoading(false);
+      setSession(session); if (session?.user) loadProfile(session.user.id); setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user) loadProfile(session.user.id);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSession(session); if (session?.user) loadProfile(session.user.id);
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  const loadProfile = async (userId) => {
-    const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
+  const loadProfile = async (uid) => {
+    const { data } = await supabase.from("profiles").select("*").eq("id", uid).single();
     if (data) setUser(data);
   };
 
@@ -483,20 +586,18 @@ export default function App() {
     const { data: p } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
     const { data: cm } = await supabase.from("comments").select("task_id");
+    const { data: st } = await supabase.from("subtasks").select("task_id, completed");
 
-    const projectList = p || [];
-    setProjects(projectList);
+    const pl = p || []; setProjects(pl);
+    const cc = {}; (cm || []).forEach(c => { cc[c.task_id] = (cc[c.task_id] || 0) + 1; });
+    const sc = {}, sd = {};
+    (st || []).forEach(s => { sc[s.task_id] = (sc[s.task_id] || 0) + 1; if (s.completed) sd[s.task_id] = (sd[s.task_id] || 0) + 1; });
 
-    const commentCounts = {};
-    (cm || []).forEach(c => { commentCounts[c.task_id] = (commentCounts[c.task_id] || 0) + 1; });
-
-    const taskList = (t || []).map(task => ({
-      ...task,
-      project_name: projectList.find(pr => pr.id === task.project_id)?.name || "Unknown",
-      assignee_name: user?.full_name || "You",
-      comment_count: commentCounts[task.id] || 0,
-    }));
-    setTasks(taskList);
+    setTasks((t || []).map(task => ({
+      ...task, project_name: pl.find(pr => pr.id === task.project_id)?.name || "Unknown",
+      assignee_name: user?.full_name || "You", comment_count: cc[task.id] || 0,
+      subtask_count: sc[task.id] || 0, subtask_done: sd[task.id] || 0,
+    })));
   }, [session, user]);
 
   useEffect(() => { if (session && user) loadData(); }, [session, user, loadData]);
@@ -505,66 +606,57 @@ export default function App() {
     setSaving(true); setAuthError("");
     try {
       if (type === "signup") {
-        const { data, error } = await supabase.auth.signUp({
-          email, password, options: { data: { full_name: name } }
-        });
+        const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
         if (error) { setAuthError(error.message); setSaving(false); return; }
         if (data.user && !data.session) setAuthError("Check your email to confirm, then sign in.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) { setAuthError(error.message); setSaving(false); return; }
       }
-    } catch (e) { setAuthError("Network error. Please try again."); }
+    } catch (e) { setAuthError("Network error."); }
     setSaving(false);
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setSession(null); setUser(null); setProjects([]); setTasks([]);
-  };
+  const handleLogout = async () => { await supabase.auth.signOut(); setSession(null); setUser(null); setProjects([]); setTasks([]); };
 
   const addProject = async () => {
-    if (!newProject.name.trim() || !session) return;
-    setSaving(true);
-    const { data } = await supabase.from("projects").insert({
-      name: newProject.name, color: newProject.color, owner_id: session.user.id
-    }).select();
-    if (data?.[0]) {
-      await supabase.from("project_members").insert({
-        project_id: data[0].id, user_id: session.user.id, role: "owner"
-      });
-    }
-    setNewProject({ name: "", color: "#2e7cf6" }); setShowNewProject(false);
-    await loadData(); setSaving(false);
+    if (!newProject.name.trim() || !session) return; setSaving(true);
+    const { data } = await supabase.from("projects").insert({ name: newProject.name, color: newProject.color, owner_id: session.user.id }).select();
+    if (data?.[0]) await supabase.from("project_members").insert({ project_id: data[0].id, user_id: session.user.id, role: "owner" });
+    setNewProject({ name: "", color: "#2e7cf6" }); setShowNewProject(false); await loadData(); setSaving(false);
   };
 
   const addTask = async () => {
-    if (!newTask.title.trim() || !newTask.project_id || !session) return;
-    setSaving(true);
+    if (!newTask.title.trim() || !newTask.project_id || !session) return; setSaving(true);
     await supabase.from("tasks").insert({
-      title: newTask.title, project_id: newTask.project_id,
-      priority: newTask.priority, status: "todo",
-      deadline: newTask.deadline || null,
+      title: newTask.title, project_id: newTask.project_id, priority: newTask.priority, status: "todo",
+      deadline: newTask.deadline || null, description: newTask.description || "",
       assignee_id: session.user.id, created_by: session.user.id,
     });
-    setNewTask({ title: "", project_id: projects[0]?.id || "", priority: "Medium", deadline: "" });
+    setNewTask({ title: "", project_id: projects[0]?.id || "", priority: "Medium", deadline: "", description: "" });
     setShowNewTask(false); await loadData(); setSaving(false);
   };
 
   const handleDrop = (status) => async (e) => {
-    e.preventDefault();
-    if (!dragId) return;
+    e.preventDefault(); if (!dragId) return;
     await supabase.from("tasks").update({ status, updated_at: new Date().toISOString() }).eq("id", dragId);
     setDragId(null); await loadData();
   };
 
+  // Filter tasks
+  const filtered = tasks.filter(t => {
+    if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterProject && t.project_id !== filterProject) return false;
+    if (filterPriority && t.priority !== filterPriority) return false;
+    if (filterStatus && t.status !== filterStatus) return false;
+    return true;
+  });
+
   if (loading) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: C.bg, fontFamily: ff }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.bg, fontFamily: ff }}>
       <div style={{ textAlign: "center" }}>
         <div style={{ width: 48, height: 48, borderRadius: 12, background: C.primary, margin: "0 auto 16px",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 24, fontWeight: 800, color: "#fff" }}>T</div>
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 800, color: "#fff" }}>T</div>
         <p style={{ color: C.textSecondary }}>Loading TaskFlow...</p>
       </div>
     </div>
@@ -572,34 +664,30 @@ export default function App() {
 
   if (!session) return <LoginScreen onLogin={handleAuth} loading={saving} error={authError} />;
 
-  const todoTasks = tasks.filter(t => t.status === "todo");
-  const progressTasks = tasks.filter(t => t.status === "progress");
-  const doneTasks = tasks.filter(t => t.status === "done");
+  const todo = filtered.filter(t => t.status === "todo");
+  const prog = filtered.filter(t => t.status === "progress");
+  const done = filtered.filter(t => t.status === "done");
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: ff, color: C.textPrimary }}>
       <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} />
-
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ padding: "16px 32px", borderBottom: `1px solid ${C.border}`,
-          display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "16px 32px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: -0.3 }}>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
               {active === "dashboard" ? "Dashboard" : active === "board" ? "Kanban Board" :
                active === "calendar" ? "Calendar" : "Projects"}</h1>
             <p style={{ margin: "2px 0 0", fontSize: 13, color: C.textSecondary }}>
               {active === "dashboard" ? `${tasks.length} tasks across ${projects.length} projects` :
-               active === "board" ? "Drag tasks · Click for details & comments" :
-               active === "calendar" ? "View tasks by deadline" : "Manage all your projects"}</p>
+               active === "board" ? "Drag tasks · Click for details" :
+               active === "calendar" ? "View tasks by deadline" : "Manage your projects"}</p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             {["board","dashboard","calendar"].includes(active) && projects.length > 0 && (
               <Btn onClick={() => { setNewTask({ ...newTask, project_id: projects[0]?.id }); setShowNewTask(true); }}>+ New Task</Btn>
             )}
             {active === "projects" && <Btn onClick={() => setShowNewProject(true)}>+ New Project</Btn>}
-            {projects.length === 0 && active !== "projects" && (
-              <Btn onClick={() => setActive("projects")}>Create Your First Project →</Btn>
-            )}
+            {projects.length === 0 && active !== "projects" && <Btn onClick={() => setActive("projects")}>Create First Project →</Btn>}
           </div>
         </div>
 
@@ -616,35 +704,34 @@ export default function App() {
           {/* DASHBOARD */}
           {active === "dashboard" && projects.length > 0 && (
             <div>
-              <div style={{ display: "flex", gap: 16, marginBottom: 28, flexWrap: "wrap" }}>
-                <StatCard label="Total Tasks" value={tasks.length} sub={`${doneTasks.length} completed`} color={C.primary} />
-                <StatCard label="In Progress" value={progressTasks.length} sub="Currently active" color={C.accentOrange} />
-                <StatCard label="Completed" value={doneTasks.length}
-                  sub={tasks.length > 0 ? `${Math.round((doneTasks.length / tasks.length) * 100)}% rate` : "0%"} color={C.accent} />
-                <StatCard label="Projects" value={projects.length} sub="Active projects" />
+              <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+                <StatCard label="Total Tasks" value={tasks.length} sub={`${done.length} completed`} color={C.primary} />
+                <StatCard label="In Progress" value={prog.length} sub="Active" color={C.accentOrange} />
+                <StatCard label="Completed" value={done.length} sub={tasks.length ? `${Math.round((done.length/tasks.length)*100)}%` : "0%"} color={C.accent} />
+                <StatCard label="Projects" value={projects.length} sub="Active" />
               </div>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: C.textSecondary, marginBottom: 14, letterSpacing: 0.3 }}>RECENT TASKS</h3>
-              {tasks.length === 0 ? (
+              <SearchFilterBar search={search} setSearch={setSearch} filterProject={filterProject}
+                setFilterProject={setFilterProject} filterPriority={filterPriority} setFilterPriority={setFilterPriority}
+                filterStatus={filterStatus} setFilterStatus={setFilterStatus} projects={projects} />
+              {filtered.length === 0 ? (
                 <div style={{ padding: 40, textAlign: "center", background: C.bgCard, borderRadius: 10, border: `1px solid ${C.border}` }}>
-                  <p style={{ color: C.textSecondary }}>No tasks yet. Go to the Board to create one!</p>
+                  <p style={{ color: C.textSecondary }}>{search || filterProject || filterPriority || filterStatus ? "No tasks match your filters." : "No tasks yet."}</p>
                 </div>
               ) : (
                 <div style={{ background: C.bgCard, borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                  {tasks.slice(0, 8).map((t, i) => (
+                  {filtered.slice(0, 12).map((t, i) => (
                     <div key={t.id} onClick={() => setSelectedTask(t)} style={{
-                      padding: "14px 20px", display: "flex", alignItems: "center",
-                      justifyContent: "space-between", cursor: "pointer", transition: "background 0.12s",
-                      borderBottom: i < Math.min(tasks.length, 8) - 1 ? `1px solid ${C.border}` : "none" }}
+                      padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
+                      cursor: "pointer", transition: "background 0.12s",
+                      borderBottom: i < Math.min(filtered.length, 12)-1 ? `1px solid ${C.border}` : "none" }}
                       onMouseEnter={e => e.currentTarget.style.background = C.bgHover}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                         <div style={{ width: 18, height: 18, borderRadius: 4,
                           border: `2px solid ${t.status === "done" ? C.accent : C.border}`,
                           background: t.status === "done" ? C.accent : "transparent",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 10, color: "#fff" }}>
-                          {t.status === "done" && "✓"}
-                        </div>
+                          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff" }}>
+                          {t.status === "done" && "✓"}</div>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary,
                             textDecoration: t.status === "done" ? "line-through" : "none" }}>{t.title}</div>
@@ -652,6 +739,7 @@ export default function App() {
                         </div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        {t.subtask_count > 0 && <span style={{ fontSize: 11, color: C.textMuted }}>☑ {t.subtask_done}/{t.subtask_count}</span>}
                         {t.comment_count > 0 && <span style={{ fontSize: 11, color: C.textMuted }}>💬 {t.comment_count}</span>}
                         <Badge text={t.priority} color={PRI[t.priority]?.color} bg={PRI[t.priority]?.bg} />
                       </div>
@@ -664,21 +752,22 @@ export default function App() {
 
           {/* BOARD */}
           {active === "board" && projects.length > 0 && (
-            <div style={{ display: "flex", gap: 16, height: "calc(100vh - 160px)" }}>
-              <KanbanCol title="To Do" count={todoTasks.length} color={C.primary} tasks={todoTasks}
-                onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("todo")}
-                onTaskClick={setSelectedTask} />
-              <KanbanCol title="In Progress" count={progressTasks.length} color={C.accentOrange} tasks={progressTasks}
-                onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("progress")}
-                onTaskClick={setSelectedTask} />
-              <KanbanCol title="Done" count={doneTasks.length} color={C.accent} tasks={doneTasks}
-                onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("done")}
-                onTaskClick={setSelectedTask} />
+            <div>
+              <SearchFilterBar search={search} setSearch={setSearch} filterProject={filterProject}
+                setFilterProject={setFilterProject} filterPriority={filterPriority} setFilterPriority={setFilterPriority}
+                filterStatus={filterStatus} setFilterStatus={setFilterStatus} projects={projects} />
+              <div style={{ display: "flex", gap: 16, height: "calc(100vh - 220px)" }}>
+                <KanbanCol title="To Do" count={todo.length} color={C.primary} tasks={todo}
+                  onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("todo")} onTaskClick={setSelectedTask} />
+                <KanbanCol title="In Progress" count={prog.length} color={C.accentOrange} tasks={prog}
+                  onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("progress")} onTaskClick={setSelectedTask} />
+                <KanbanCol title="Done" count={done.length} color={C.accent} tasks={done}
+                  onDragStart={setDragId} onDragOver={e => e.preventDefault()} onDrop={handleDrop("done")} onTaskClick={setSelectedTask} />
+              </div>
             </div>
           )}
 
-          {/* CALENDAR */}
-          {active === "calendar" && projects.length > 0 && <CalendarView tasks={tasks} />}
+          {active === "calendar" && projects.length > 0 && <CalendarView tasks={filtered} />}
 
           {/* PROJECTS */}
           {active === "projects" && (
@@ -687,14 +776,13 @@ export default function App() {
                 <div style={{ textAlign: "center", padding: "60px 0" }}>
                   <div style={{ fontSize: 48, marginBottom: 16 }}>📂</div>
                   <h2 style={{ color: C.textPrimary, marginBottom: 8 }}>No projects yet</h2>
-                  <p style={{ color: C.textSecondary, marginBottom: 24 }}>Click "+ New Project" above to create your first one.</p>
+                  <p style={{ color: C.textSecondary, marginBottom: 24 }}>Click "+ New Project" to start.</p>
                 </div>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
                 {projects.map(p => {
-                  const pTasks = tasks.filter(t => t.project_id === p.id);
-                  const pDone = pTasks.filter(t => t.status === "done").length;
-                  const pct = pTasks.length > 0 ? Math.round((pDone / pTasks.length) * 100) : 0;
+                  const pt = tasks.filter(t => t.project_id === p.id), pd = pt.filter(t => t.status === "done").length;
+                  const pct = pt.length > 0 ? Math.round((pd / pt.length) * 100) : 0;
                   return (
                     <div key={p.id} style={{ padding: 24, borderRadius: 10, background: C.bgCard, border: `1px solid ${C.border}` }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
@@ -705,8 +793,7 @@ export default function App() {
                         <div style={{ height: "100%", width: `${pct}%`, borderRadius: 3, background: p.color, transition: "width 0.3s" }} />
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textSecondary }}>
-                        <span>{pDone}/{pTasks.length} tasks</span>
-                        <span>{pct}%</span>
+                        <span>{pd}/{pt.length} tasks</span><span>{pct}%</span>
                       </div>
                     </div>
                   );
@@ -717,28 +804,29 @@ export default function App() {
         </div>
       </div>
 
-      {/* TASK DETAIL MODAL */}
-      {selectedTask && (
-        <TaskDetail task={selectedTask} onClose={() => setSelectedTask(null)}
-          session={session} user={user} onUpdate={loadData} />
-      )}
+      {selectedTask && <TaskDetail task={selectedTask} onClose={() => setSelectedTask(null)}
+        session={session} user={user} onUpdate={loadData} projects={projects} />}
 
-      {/* NEW TASK MODAL */}
       {showNewTask && (
         <Modal title="Create New Task" onClose={() => setShowNewTask(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <Inp label="Task Title" placeholder="e.g. Design login page" value={newTask.title}
               onChange={e => setNewTask({ ...newTask, title: e.target.value })} />
-            <Sel label="Project" value={newTask.project_id}
-              onChange={e => setNewTask({ ...newTask, project_id: e.target.value })}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, letterSpacing: 0.4, textTransform: "uppercase" }}>Description</label>
+              <textarea value={newTask.description} onChange={e => setNewTask({ ...newTask, description: e.target.value })}
+                placeholder="Add details about this task..." rows={3}
+                style={{ padding: "10px 14px", borderRadius: 6, border: `1px solid ${C.border}`,
+                  background: C.bgInput, color: C.textPrimary, fontSize: 13, outline: "none",
+                  fontFamily: ff, resize: "vertical" }} />
+            </div>
+            <Sel label="Project" value={newTask.project_id} onChange={e => setNewTask({ ...newTask, project_id: e.target.value })}>
               {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </Sel>
-            <Sel label="Priority" value={newTask.priority}
-              onChange={e => setNewTask({ ...newTask, priority: e.target.value })}>
+            <Sel label="Priority" value={newTask.priority} onChange={e => setNewTask({ ...newTask, priority: e.target.value })}>
               <option>High</option><option>Medium</option><option>Low</option>
             </Sel>
-            <Inp label="Deadline" type="date" value={newTask.deadline}
-              onChange={e => setNewTask({ ...newTask, deadline: e.target.value })} />
+            <Inp label="Deadline" type="date" value={newTask.deadline} onChange={e => setNewTask({ ...newTask, deadline: e.target.value })} />
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
               <Btn onClick={addTask} disabled={saving} style={{ flex: 1, justifyContent: "center" }}>
                 {saving ? "Creating..." : "Create Task"}</Btn>
@@ -748,15 +836,13 @@ export default function App() {
         </Modal>
       )}
 
-      {/* NEW PROJECT MODAL */}
       {showNewProject && (
         <Modal title="Create New Project" onClose={() => setShowNewProject(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <Inp label="Project Name" placeholder="e.g. Client Portal" value={newProject.name}
               onChange={e => setNewProject({ ...newProject, name: e.target.value })} />
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary,
-                letterSpacing: 0.4, textTransform: "uppercase" }}>Color</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, letterSpacing: 0.4, textTransform: "uppercase" }}>Color</label>
               <div style={{ display: "flex", gap: 8 }}>
                 {AVS.map(c => (
                   <div key={c} onClick={() => setNewProject({ ...newProject, color: c })} style={{
