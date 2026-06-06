@@ -405,6 +405,47 @@ function ActivityLog({C:c,projectId,session,memberProfiles}){
   </div>);
 }
 
+// ==================== LIST VIEW ====================
+function ListView({tasks,onTaskClick,projects,C:c,search,setSearch,filterProject,setFilterProject,filterPriority,setFilterPriority}){
+  const[sortBy,setSortBy]=useState("created");const[sortDir,setSortDir]=useState("desc");
+  const sorted=[...tasks].sort((a,b)=>{let va,vb;
+    if(sortBy==="title"){va=a.title.toLowerCase();vb=b.title.toLowerCase();}
+    else if(sortBy==="priority"){const o={High:3,Medium:2,Low:1};va=o[a.priority]||0;vb=o[b.priority]||0;}
+    else if(sortBy==="deadline"){va=a.deadline||"9999";vb=b.deadline||"9999";}
+    else if(sortBy==="status"){const o={todo:1,progress:2,done:3};va=o[a.status]||0;vb=o[b.status]||0;}
+    else{va=a.created_at;vb=b.created_at;}
+    if(va<vb)return sortDir==="asc"?-1:1;if(va>vb)return sortDir==="asc"?1:-1;return 0;});
+  const toggleSort=col=>{if(sortBy===col)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortBy(col);setSortDir("asc");}};
+  const SortIcon=({col})=>sortBy===col?<span style={{marginLeft:4,fontSize:10}}>{sortDir==="asc"?"▲":"▼"}</span>:null;
+  const cols=[{key:"title",label:"Task",flex:3},{key:"project",label:"Project",flex:2},{key:"priority",label:"Priority",flex:1},{key:"status",label:"Status",flex:1},{key:"deadline",label:"Deadline",flex:1}];
+  const statusLabel={todo:"To Do",progress:"In Progress",done:"Done"};
+  const statusColor={todo:c.primary,progress:c.accentOrange,done:c.accent};
+
+  return(<div>
+    <SearchFilterBar search={search} setSearch={setSearch} filterProject={filterProject} setFilterProject={setFilterProject} filterPriority={filterPriority} setFilterPriority={setFilterPriority} projects={projects} C={c}/>
+    <div style={{background:c.bgCard,borderRadius:12,border:`1px solid ${c.border}`,overflow:"hidden"}}>
+      <div style={{display:"flex",padding:"10px 16px",borderBottom:`2px solid ${c.border}`,background:c.bgHover}}>
+        {cols.map(col=><div key={col.key} onClick={()=>toggleSort(col.key)} style={{flex:col.flex,fontSize:11,fontWeight:700,color:c.textMuted,textTransform:"uppercase",letterSpacing:0.5,cursor:"pointer",display:"flex",alignItems:"center"}}>{col.label}<SortIcon col={col.key}/></div>)}
+      </div>
+      {sorted.length===0?<div style={{padding:40,textAlign:"center",color:c.textMuted,fontSize:13}}>No tasks match your filters.</div>:
+      sorted.map((t,i)=>(
+        <div key={t.id} onClick={()=>onTaskClick(t)} style={{display:"flex",padding:"12px 16px",borderBottom:i<sorted.length-1?`1px solid ${c.border}`:"none",cursor:"pointer",alignItems:"center"}}
+          onMouseEnter={e=>e.currentTarget.style.background=c.bgHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <div style={{flex:3,display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:16,height:16,borderRadius:4,flexShrink:0,border:`2px solid ${t.status==="done"?c.accent:c.border}`,background:t.status==="done"?c.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#fff"}}>{t.status==="done"&&"✓"}</div>
+            <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:c.textPrimary,textDecoration:t.status==="done"?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div></div>
+            {t.assignee_name&&t.assignee_id&&<Avatar name={t.assignee_name} color={AVS[t.assignee_name.length%AVS.length]} size={20}/>}
+          </div>
+          <div style={{flex:2,fontSize:12,color:c.textSecondary}}>{t.project_name}</div>
+          <div style={{flex:1}}><Badge text={t.priority} color={PRI[t.priority]?.color} bg={PRI[t.priority]?.bg}/></div>
+          <div style={{flex:1}}><span style={{fontSize:11,fontWeight:600,color:statusColor[t.status],padding:"3px 8px",borderRadius:4,background:`${statusColor[t.status]}15`}}>{statusLabel[t.status]}</span></div>
+          <div style={{flex:1,fontSize:12,color:t.deadline?c.textSecondary:c.textMuted}}>{t.deadline||"—"}</div>
+        </div>))}
+    </div>
+    <div style={{marginTop:10,fontSize:12,color:c.textMuted}}>{sorted.length} task{sorted.length!==1?"s":""} · Click column headers to sort</div>
+  </div>);
+}
+
 // ==================== CALENDAR ====================
 function CalendarView({tasks,C:c}){const[cur,setCur]=useState(new Date());const y=cur.getFullYear(),m=cur.getMonth();const name=cur.toLocaleString("default",{month:"long",year:"numeric"});const first=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate(),today=new Date();const days=[];for(let i=0;i<first;i++)days.push(null);for(let i=1;i<=dim;i++)days.push(i);const tf=d=>{if(!d)return[];const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return tasks.filter(t=>t.deadline===ds);};const it=d=>d&&today.getFullYear()===y&&today.getMonth()===m&&today.getDate()===d;
   return(<div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}><Btn variant="ghost" C={c} onClick={()=>setCur(new Date(y,m-1,1))}>← Prev</Btn><h2 style={{margin:0,fontSize:18,fontWeight:700,color:c.textPrimary}}>{name}</h2><Btn variant="ghost" C={c} onClick={()=>setCur(new Date(y,m+1,1))}>Next →</Btn></div>
@@ -544,7 +585,7 @@ function LandingPage({onLogin,loading,error}){
 // ==================== SIDEBAR ====================
 function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiveProject,theme,toggleTheme,pendingCount,C:c,onOpenSettings,teamMembers}){
   const[profileOpen,setProfileOpen]=useState(false);const[teamOpen,setTeamOpen]=useState(true);
-  const nav=[{id:"dashboard",icon:"◫",label:"Dashboard"},{id:"board",icon:"☰",label:"Board"},{id:"calendar",icon:"▦",label:"Calendar"},{id:"activity",icon:"◔",label:"Activity"},{id:"projects",icon:"◉",label:"Projects"}];
+  const nav=[{id:"dashboard",icon:"◫",label:"Dashboard"},{id:"board",icon:"☰",label:"Board"},{id:"list",icon:"≡",label:"List"},{id:"calendar",icon:"▦",label:"Calendar"},{id:"activity",icon:"◔",label:"Activity"},{id:"projects",icon:"◉",label:"Projects"}];
   const menuItems=[
     {icon:"◫",label:"Dashboard",action:()=>{setActive("dashboard");setActiveProject(null);setProfileOpen(false);}},
     {icon:"⚙",label:"Settings",action:()=>{onOpenSettings();setProfileOpen(false);}},
@@ -733,10 +774,10 @@ export default function App(){
     <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} activeProject={activeProject} setActiveProject={setActiveProject} theme={theme} toggleTheme={toggleTheme} pendingCount={pendingInvitations.length} C={c} onOpenSettings={()=>setShowSettings(true)} teamMembers={[...new Map((allMembers||[]).map(m=>({...m,full_name:(memberProfiles||[]).find(p=>p.id===m.user_id)?.full_name||"User"})).map(m=>[m.user_id,m])).values()]}/>
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{padding:"16px 32px",borderBottom:`1px solid ${c.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="home"?"Home":active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="calendar"?"Calendar":active==="activity"?"Activity":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
-          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="home"?"Your workspace at a glance":active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="calendar"?"View by deadline":active==="activity"?"See what everyone's been up to":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
+        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="home"?"Home":active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="list"?"List View":active==="calendar"?"Calendar":active==="activity"?"Activity":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
+          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="home"?"Your workspace at a glance":active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="list"?"Sort, filter & manage all tasks":active==="calendar"?"View by deadline":active==="activity"?"See what everyone's been up to":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
         <div style={{display:"flex",gap:10}}>
-          {["board","dashboard","calendar","project-detail","home"].includes(active)&&projects.length>0&&<Btn onClick={()=>{setNewTask({...newTask,project_id:activeProject?.id||projects[0]?.id,category_id:"",assignee_id:""});setShowNewTask(true);}} C={c}>+ New Task</Btn>}
+          {["board","dashboard","calendar","project-detail","home","list"].includes(active)&&projects.length>0&&<Btn onClick={()=>{setNewTask({...newTask,project_id:activeProject?.id||projects[0]?.id,category_id:"",assignee_id:""});setShowNewTask(true);}} C={c}>+ New Task</Btn>}
           {active==="projects"&&<Btn onClick={()=>setShowNewProject(true)} C={c}>+ New Project</Btn>}
           {projects.length===0&&active!=="projects"&&<Btn onClick={()=>setActive("projects")} C={c}>Create First Project →</Btn>}</div></div>
 
@@ -757,6 +798,8 @@ export default function App(){
 
         {active==="board"&&projects.length>0&&<div><SearchFilterBar search={search} setSearch={setSearch} filterProject={filterProject} setFilterProject={setFilterProject} filterPriority={filterPriority} setFilterPriority={setFilterPriority} projects={projects} C={c}/>
           <div style={{display:"flex",gap:16,height:"calc(100vh - 220px)"}}><KanbanCol title="To Do" count={todo.length} color={c.primary} tasks={todo} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("todo")} onTaskClick={setSelectedTask} C={c}/><KanbanCol title="In Progress" count={prog.length} color={c.accentOrange} tasks={prog} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("progress")} onTaskClick={setSelectedTask} C={c}/><KanbanCol title="Done" count={done.length} color={c.accent} tasks={done} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("done")} onTaskClick={setSelectedTask} C={c}/></div></div>}
+
+        {active==="list"&&projects.length>0&&<ListView tasks={filtered} onTaskClick={setSelectedTask} projects={projects} C={c} search={search} setSearch={setSearch} filterProject={filterProject} setFilterProject={setFilterProject} filterPriority={filterPriority} setFilterPriority={setFilterPriority}/>}
 
         {active==="calendar"&&projects.length>0&&<CalendarView tasks={filtered} C={c}/>}
 
