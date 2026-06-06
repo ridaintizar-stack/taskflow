@@ -135,19 +135,28 @@ function TaskDetail({task,onClose,session,user,onUpdate,categories,members,C:c})
 
 // ==================== INVITE MODAL ====================
 function InviteModal({project,onClose,session,onUpdate,C:c}){
-  const[email,setEmail]=useState("");const[sending,setSending]=useState(false);const[msg,setMsg]=useState("");
+  const[email,setEmail]=useState("");const[sending,setSending]=useState(false);const[msg,setMsg]=useState("");const[copied,setCopied]=useState(false);
+  const inviteLink=typeof window!=="undefined"?`${window.location.origin}?invite=${project.id}`:"";
   const invite=async()=>{if(!email.trim())return;setSending(true);setMsg("");
     const{data:existing}=await supabase.from("invitations").select("*").eq("project_id",project.id).eq("email",email);
     if(existing&&existing.length>0){setMsg("Already invited!");setSending(false);return;}
     const{error}=await supabase.from("invitations").insert({project_id:project.id,email:email.trim().toLowerCase(),invited_by:session.user.id});
-    if(error){setMsg(error.message);}else{setMsg("Invitation sent! They'll see it when they log in.");setEmail("");}
+    if(error){setMsg(error.message);}else{setMsg("Invitation created! Share the link below with them.");setEmail("");}
     await onUpdate();setSending(false);};
+  const copyLink=()=>{navigator.clipboard.writeText(inviteLink).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
   return(<Modal title={`Invite to ${project.name}`} onClose={onClose} C={c}>
-    <p style={{color:c.textSecondary,fontSize:13,marginBottom:20}}>Enter the email of the person you want to invite. They must have a TaskFlow account.</p>
+    <p style={{color:c.textSecondary,fontSize:13,marginBottom:20}}>Invite a teammate by email. They'll see the invitation when they log in.</p>
     <div style={{display:"flex",gap:10,marginBottom:12}}>
       <Inp C={c} placeholder="teammate@email.com" type="email" value={email} onChange={e=>setEmail(e.target.value)} style={{flex:1}}/>
-      <Btn onClick={invite} disabled={sending} C={c}>{sending?"Sending...":"Send Invite"}</Btn></div>
-    {msg&&<div style={{padding:"10px 14px",borderRadius:6,background:msg.includes("sent")?`rgba(34,197,94,0.12)`:"rgba(239,68,68,0.12)",color:msg.includes("sent")?c.accent:c.accentRed,fontSize:13}}>{msg}</div>}
+      <Btn onClick={invite} disabled={sending} C={c}>{sending?"Sending...":"Invite"}</Btn></div>
+    {msg&&<div style={{padding:"10px 14px",borderRadius:6,background:msg.includes("created")?`rgba(34,197,94,0.12)`:"rgba(239,68,68,0.12)",color:msg.includes("created")?c.accent:c.accentRed,fontSize:13,marginBottom:12}}>{msg}</div>}
+    <div style={{borderTop:`1px solid ${c.border}`,marginTop:16,paddingTop:16}}>
+      <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Or share invite link</label>
+      <div style={{display:"flex",gap:8}}>
+        <div style={{flex:1,padding:"10px 14px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textMuted,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{inviteLink}</div>
+        <Btn onClick={copyLink} variant="ghost" C={c} style={{fontSize:12,whiteSpace:"nowrap"}}>{copied?"✓ Copied!":"Copy Link"}</Btn></div>
+      <p style={{fontSize:11,color:c.textMuted,marginTop:8}}>Send this link via WhatsApp, email, or any messenger. They need to sign up with the email you invited.</p>
+    </div>
   </Modal>);
 }
 
@@ -502,8 +511,8 @@ function LandingPage({onLogin,loading,error}){
 }
 
 // ==================== SIDEBAR ====================
-function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiveProject,theme,toggleTheme,pendingCount,C:c,onOpenSettings}){
-  const[profileOpen,setProfileOpen]=useState(false);
+function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiveProject,theme,toggleTheme,pendingCount,C:c,onOpenSettings,teamMembers}){
+  const[profileOpen,setProfileOpen]=useState(false);const[teamOpen,setTeamOpen]=useState(true);
   const nav=[{id:"dashboard",icon:"◫",label:"Dashboard"},{id:"board",icon:"☰",label:"Board"},{id:"calendar",icon:"▦",label:"Calendar"},{id:"schedule",icon:"◷",label:"Schedule"},{id:"projects",icon:"◉",label:"Projects"}];
   const menuItems=[
     {icon:"◫",label:"Dashboard",action:()=>{setActive("dashboard");setActiveProject(null);setProfileOpen(false);}},
@@ -524,7 +533,22 @@ function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiv
     <div style={{padding:"8px 12px",flex:1,overflowY:"auto"}}>
       <p style={{fontSize:10,fontWeight:700,color:c.textMuted,letterSpacing:1,textTransform:"uppercase",padding:"0 8px",marginBottom:6}}>Projects</p>
       {projects.map(p=><div key={p.id} onClick={()=>{setActiveProject(p);setActive("project-detail");}} style={{padding:"8px 12px",borderRadius:6,display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginBottom:2,background:activeProject?.id===p.id?c.primaryMuted:"transparent"}}>
-        <div style={{width:8,height:8,borderRadius:2,background:p.color}}/><span style={{fontSize:13,color:activeProject?.id===p.id?c.primary:c.textSecondary,fontWeight:activeProject?.id===p.id?600:400}}>{p.name}</span></div>)}</div>
+        <div style={{width:8,height:8,borderRadius:2,background:p.color}}/><span style={{fontSize:13,color:activeProject?.id===p.id?c.primary:c.textSecondary,fontWeight:activeProject?.id===p.id?600:400}}>{p.name}</span></div>)}
+      {/* Team Members */}
+      <div style={{marginTop:12}}>
+        <div onClick={()=>setTeamOpen(!teamOpen)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 8px",marginBottom:6,cursor:"pointer"}}>
+          <p style={{fontSize:10,fontWeight:700,color:c.textMuted,letterSpacing:1,textTransform:"uppercase",margin:0}}>Team</p>
+          <span style={{fontSize:10,color:c.textMuted,transform:teamOpen?"rotate(180deg)":"",transition:"transform 0.2s"}}>▼</span></div>
+        {teamOpen&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
+          {(teamMembers||[]).map((m,i)=>{const roleColors={owner:"#f59e0b",admin:"#8b5cf6",member:"#2e7cf6",viewer:"#64748b"};
+            return(<div key={m.user_id||i} style={{padding:"6px 12px",borderRadius:6,display:"flex",alignItems:"center",gap:8}}>
+              <Avatar name={m.full_name||"?"} color={AVS[(m.full_name||"?").length%AVS.length]} size={24}/>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:500,color:c.textPrimary,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.full_name||"User"}{m.user_id===user?.id?" (You)":""}</div></div>
+              <div style={{width:6,height:6,borderRadius:"50%",background:roleColors[m.role]||roleColors.member,flexShrink:0}} title={m.role}/></div>);})}
+          {(!teamMembers||teamMembers.length===0)&&<div style={{padding:"6px 12px",fontSize:11,color:c.textMuted}}>No team members yet</div>}
+        </div>}
+      </div>
+    </div>
     {/* Profile Section */}
     <div style={{position:"relative",borderTop:`1px solid ${c.border}`}}>
       {profileOpen&&<div style={{position:"absolute",bottom:"100%",left:12,right:12,marginBottom:4,background:c.bgCard,border:`1px solid ${c.border}`,borderRadius:10,boxShadow:"0 8px 32px rgba(0,0,0,0.3)",overflow:"hidden",zIndex:50}}>
@@ -611,7 +635,7 @@ export default function App(){
   const todo=filtered.filter(t=>t.status==="todo"),prog=filtered.filter(t=>t.status==="progress"),done=filtered.filter(t=>t.status==="done");
 
   return(<div style={{display:"flex",minHeight:"100vh",background:c.bg,fontFamily:ff,color:c.textPrimary}}>
-    <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} activeProject={activeProject} setActiveProject={setActiveProject} theme={theme} toggleTheme={toggleTheme} pendingCount={pendingInvitations.length} C={c} onOpenSettings={()=>setShowSettings(true)}/>
+    <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} activeProject={activeProject} setActiveProject={setActiveProject} theme={theme} toggleTheme={toggleTheme} pendingCount={pendingInvitations.length} C={c} onOpenSettings={()=>setShowSettings(true)} teamMembers={[...new Map((allMembers||[]).map(m=>({...m,full_name:(memberProfiles||[]).find(p=>p.id===m.user_id)?.full_name||"User"})).map(m=>[m.user_id,m])).values()]}/>
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{padding:"16px 32px",borderBottom:`1px solid ${c.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="calendar"?"Calendar":active==="schedule"?"Schedule":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
