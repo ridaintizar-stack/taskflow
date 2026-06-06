@@ -253,6 +253,122 @@ function ProjectDetail({project,tasks,categories,members,onBack,onTaskClick,sess
   </div>);
 }
 
+// ==================== SCHEDULE VIEW ====================
+function ScheduleView({projects,members,session,C:c}){
+  const[weekStart,setWeekStart]=useState(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);return d;});
+  const[shifts,setShifts]=useState([]);const[showAdd,setShowAdd]=useState(false);const[selProject,setSelProject]=useState(projects[0]?.id||"");
+  const[newShift,setNewShift]=useState({title:"",user_id:"",shift_date:"",start_time:"09:00",end_time:"17:00",notes:""});
+  const[saving,setSaving]=useState(false);
+
+  const weekDays=Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(d.getDate()+i);return d;});
+  const hours=Array.from({length:13},(_,i)=>i+7);// 7am to 7pm
+  const fmtDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const dayNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const today=fmtDate(new Date());
+
+  const loadShifts=useCallback(async()=>{
+    if(!selProject)return;
+    const ws=fmtDate(weekDays[0]),we=fmtDate(weekDays[6]);
+    const{data}=await supabase.from("shifts").select("*").eq("project_id",selProject).gte("shift_date",ws).lte("shift_date",we);
+    setShifts(data||[]);
+  },[selProject,weekStart]);
+
+  useEffect(()=>{loadShifts();},[loadShifts]);
+
+  const prevWeek=()=>{const d=new Date(weekStart);d.setDate(d.getDate()-7);setWeekStart(d);};
+  const nextWeek=()=>{const d=new Date(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);};
+  const goToday=()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);setWeekStart(d);};
+
+  const addShift=async()=>{if(!newShift.title.trim()||!newShift.shift_date||!selProject)return;setSaving(true);
+    await supabase.from("shifts").insert({...newShift,project_id:selProject,user_id:newShift.user_id||session.user.id,color:AVS[(newShift.title.length)%AVS.length],created_by:session.user.id});
+    setNewShift({title:"",user_id:"",shift_date:"",start_time:"09:00",end_time:"17:00",notes:""});setShowAdd(false);await loadShifts();setSaving(false);};
+
+  const delShift=async id=>{await supabase.from("shifts").delete().eq("id",id);await loadShifts();};
+
+  const pMembers=(members||[]).filter(m=>m.project_id===selProject);
+  const profMap={};pMembers.forEach(m=>{profMap[m.user_id]=m;});
+
+  const getShiftsForDayHour=(dateStr,hour)=>shifts.filter(s=>{
+    if(s.shift_date!==dateStr)return false;
+    const sh=parseInt(s.start_time?.split(":")[0]||"0");return sh===hour;});
+
+  const getShiftHeight=(s)=>{const sh=parseInt(s.start_time?.split(":")[0]||"0"),sm=parseInt(s.start_time?.split(":")[1]||"0");
+    const eh=parseInt(s.end_time?.split(":")[0]||"0"),em=parseInt(s.end_time?.split(":")[1]||"0");return Math.max(((eh*60+em)-(sh*60+sm))/60,0.5);};
+
+  return(<div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <Btn variant="ghost" C={c} onClick={prevWeek} style={{padding:"6px 12px",fontSize:12}}>← Prev</Btn>
+        <Btn variant="ghost" C={c} onClick={goToday} style={{padding:"6px 12px",fontSize:12}}>Today</Btn>
+        <Btn variant="ghost" C={c} onClick={nextWeek} style={{padding:"6px 12px",fontSize:12}}>Next →</Btn>
+        <span style={{fontSize:14,fontWeight:700,color:c.textPrimary,marginLeft:8}}>
+          {weekDays[0].toLocaleDateString("en",{month:"short",day:"numeric"})} — {weekDays[6].toLocaleDateString("en",{month:"short",day:"numeric",year:"numeric"})}</span>
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <select value={selProject} onChange={e=>{setSelProject(e.target.value);}} style={{padding:"8px 12px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:12,fontFamily:ff,outline:"none"}}>
+          {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
+        <Btn C={c} onClick={()=>{setNewShift({...newShift,shift_date:fmtDate(new Date()),user_id:""});setShowAdd(true);}} style={{fontSize:12}}>+ Add Shift</Btn>
+      </div>
+    </div>
+
+    {/* Weekly Grid */}
+    <div style={{background:c.bgCard,borderRadius:10,border:`1px solid ${c.border}`,overflow:"hidden"}}>
+      {/* Day Headers */}
+      <div style={{display:"grid",gridTemplateColumns:"60px repeat(7,1fr)",borderBottom:`1px solid ${c.border}`}}>
+        <div style={{padding:"10px",borderRight:`1px solid ${c.border}`}}/>
+        {weekDays.map((d,i)=>{const ds=fmtDate(d);const isT=ds===today;return(
+          <div key={i} style={{padding:"10px 8px",textAlign:"center",borderRight:i<6?`1px solid ${c.border}`:"none",background:isT?c.primaryMuted:"transparent"}}>
+            <div style={{fontSize:11,fontWeight:700,color:isT?c.primary:c.textMuted,textTransform:"uppercase"}}>{dayNames[d.getDay()]}</div>
+            <div style={{fontSize:16,fontWeight:isT?800:600,color:isT?c.primary:c.textPrimary,marginTop:2}}>{d.getDate()}</div>
+          </div>);})}
+      </div>
+
+      {/* Time Rows */}
+      <div style={{maxHeight:"calc(100vh - 300px)",overflowY:"auto"}}>
+        {hours.map(hour=>(
+          <div key={hour} style={{display:"grid",gridTemplateColumns:"60px repeat(7,1fr)",minHeight:60,borderBottom:`1px solid ${c.border}`}}>
+            <div style={{padding:"4px 8px",borderRight:`1px solid ${c.border}`,display:"flex",alignItems:"flex-start",justifyContent:"flex-end"}}>
+              <span style={{fontSize:11,color:c.textMuted,fontWeight:500}}>{hour>12?`${hour-12}PM`:hour===12?"12PM":`${hour}AM`}</span></div>
+            {weekDays.map((d,di)=>{const ds=fmtDate(d);const dayShifts=getShiftsForDayHour(ds,hour);return(
+              <div key={di} style={{borderRight:di<6?`1px solid ${c.border}`:"none",padding:2,position:"relative",background:ds===today?`${c.primary}05`:"transparent"}}
+                onClick={()=>{if(dayShifts.length===0){setNewShift({...newShift,shift_date:ds,start_time:`${String(hour).padStart(2,"0")}:00`,end_time:`${String(Math.min(hour+1,19)).padStart(2,"0")}:00`});setShowAdd(true);}}}>
+                {dayShifts.map(s=>{const h=getShiftHeight(s);const mem=profMap[s.user_id];return(
+                  <div key={s.id} style={{background:s.color||c.primary,borderRadius:4,padding:"4px 6px",marginBottom:2,minHeight:Math.max(h*56,28),cursor:"pointer",position:"relative",overflow:"hidden"}}
+                    title={`${s.title}\n${s.start_time}–${s.end_time}${mem?`\n${mem.full_name}`:""}`}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#fff",lineHeight:1.3}}>{s.title}</div>
+                    <div style={{fontSize:9,color:"rgba(255,255,255,0.8)"}}>{s.start_time}–{s.end_time}</div>
+                    {mem&&<div style={{fontSize:9,color:"rgba(255,255,255,0.7)"}}>{mem.full_name}</div>}
+                    <span onClick={e=>{e.stopPropagation();delShift(s.id);}} style={{position:"absolute",top:2,right:4,fontSize:10,color:"rgba(255,255,255,0.6)",cursor:"pointer"}}>✕</span>
+                  </div>);})}
+              </div>);})}
+          </div>))}
+      </div>
+    </div>
+
+    {/* Legend */}
+    {shifts.length>0&&<div style={{display:"flex",gap:12,marginTop:14,flexWrap:"wrap"}}>
+      {[...new Set(shifts.map(s=>s.user_id))].map(uid=>{const mem=profMap[uid];const color=shifts.find(s=>s.user_id===uid)?.color||c.primary;
+        return mem?<div key={uid} style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:10,height:10,borderRadius:3,background:color}}/><span style={{fontSize:11,color:c.textSecondary}}>{mem.full_name}</span></div>:null;})}</div>}
+
+    {/* Add Shift Modal */}
+    {showAdd&&<Modal title="Add Shift" onClose={()=>setShowAdd(false)} C={c}>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <Inp label="Shift Title" C={c} placeholder="e.g. Morning Shift, Client Meeting" value={newShift.title} onChange={e=>setNewShift({...newShift,title:e.target.value})}/>
+        <Inp label="Date" C={c} type="date" value={newShift.shift_date} onChange={e=>setNewShift({...newShift,shift_date:e.target.value})}/>
+        <div style={{display:"flex",gap:12}}>
+          <Inp label="Start Time" C={c} type="time" value={newShift.start_time} onChange={e=>setNewShift({...newShift,start_time:e.target.value})} style={{flex:1}}/>
+          <Inp label="End Time" C={c} type="time" value={newShift.end_time} onChange={e=>setNewShift({...newShift,end_time:e.target.value})} style={{flex:1}}/></div>
+        <Sel label="Assign To" C={c} value={newShift.user_id} onChange={e=>setNewShift({...newShift,user_id:e.target.value})}>
+          <option value="">Assign to me</option>
+          {pMembers.map(m=><option key={m.user_id} value={m.user_id}>{m.full_name}{m.user_id===session.user.id?" (You)":""}</option>)}</Sel>
+        <Inp label="Notes" C={c} placeholder="Optional notes..." value={newShift.notes} onChange={e=>setNewShift({...newShift,notes:e.target.value})}/>
+        <div style={{display:"flex",gap:10,marginTop:8}}>
+          <Btn onClick={addShift} disabled={saving} C={c} style={{flex:1,justifyContent:"center"}}>{saving?"Creating...":"Add Shift"}</Btn>
+          <Btn variant="ghost" C={c} onClick={()=>setShowAdd(false)} style={{flex:1,justifyContent:"center"}}>Cancel</Btn></div>
+      </div></Modal>}
+  </div>);
+}
+
 // ==================== CALENDAR ====================
 function CalendarView({tasks,C:c}){const[cur,setCur]=useState(new Date());const y=cur.getFullYear(),m=cur.getMonth();const name=cur.toLocaleString("default",{month:"long",year:"numeric"});const first=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate(),today=new Date();const days=[];for(let i=0;i<first;i++)days.push(null);for(let i=1;i<=dim;i++)days.push(i);const tf=d=>{if(!d)return[];const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return tasks.filter(t=>t.deadline===ds);};const it=d=>d&&today.getFullYear()===y&&today.getMonth()===m&&today.getDate()===d;
   return(<div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}><Btn variant="ghost" C={c} onClick={()=>setCur(new Date(y,m-1,1))}>← Prev</Btn><h2 style={{margin:0,fontSize:18,fontWeight:700,color:c.textPrimary}}>{name}</h2><Btn variant="ghost" C={c} onClick={()=>setCur(new Date(y,m+1,1))}>Next →</Btn></div>
@@ -275,25 +391,120 @@ const KanbanCol=({title,count,color,tasks,onDragOver,onDrop,onDragStart,onTaskCl
           <div style={{display:"flex",gap:8}}>{t.subtask_count>0&&<span style={{fontSize:11,color:c.textMuted}}>☑{t.subtask_done}/{t.subtask_count}</span>}{t.comment_count>0&&<span style={{fontSize:11,color:c.textMuted}}>💬{t.comment_count}</span>}</div></div></div>))}
       {tasks.length===0&&<div style={{padding:20,textAlign:"center",color:c.textMuted,fontSize:13}}>No tasks</div>}</div></div>);
 
-// ==================== LOGIN ====================
-function LoginScreen({onLogin,loading,error}){const c=DARK;const[isSignup,setIsSignup]=useState(false);const[email,setEmail]=useState("");const[pass,setPass]=useState("");const[name,setName]=useState("");
-  return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`linear-gradient(135deg,${c.bg} 0%,#0c1220 50%,#111827 100%)`,fontFamily:ff}}>
-    <div style={{width:420,maxWidth:"90vw",padding:"48px 40px",borderRadius:12,background:c.bgCard,border:`1px solid ${c.border}`,boxShadow:"0 24px 64px rgba(0,0,0,0.4)"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:36,height:36,borderRadius:8,background:c.primary,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"#fff"}}>T</div><span style={{fontSize:22,fontWeight:700,color:c.textPrimary,letterSpacing:-0.5}}>TaskFlow</span></div>
-      <p style={{color:c.textSecondary,fontSize:14,marginBottom:32,marginTop:4}}>{isSignup?"Create your account":"Sign in to your workspace"}</p>
-      {error&&<div style={{padding:"10px 14px",borderRadius:6,background:"rgba(239,68,68,0.12)",color:c.accentRed,fontSize:13,marginBottom:16}}>{error}</div>}
-      <div style={{display:"flex",flexDirection:"column",gap:18}}>
-        {isSignup&&<Inp label="Full Name" C={c} placeholder="John Doe" value={name} onChange={e=>setName(e.target.value)}/>}
-        <Inp label="Email" C={c} placeholder="you@company.com" type="email" value={email} onChange={e=>setEmail(e.target.value)}/>
-        <Inp label="Password" C={c} placeholder="6+ characters" type="password" value={pass} onChange={e=>setPass(e.target.value)}/>
-        <Btn onClick={()=>{if(isSignup)onLogin("signup",email,pass,name);else onLogin("signin",email,pass);}} disabled={loading} C={c} style={{width:"100%",justifyContent:"center",padding:12,fontSize:14,marginTop:4}}>{loading?"Please wait...":isSignup?"Create Account →":"Sign In →"}</Btn></div>
-      <p style={{textAlign:"center",marginTop:24,fontSize:13,color:c.textMuted}}>{isSignup?"Have an account?":"No account?"}{" "}<span onClick={()=>setIsSignup(!isSignup)} style={{color:c.primary,cursor:"pointer",fontWeight:600}}>{isSignup?"Sign in":"Sign up"}</span></p></div></div>);
+// ==================== LANDING PAGE ====================
+function LandingPage({onLogin,loading,error}){
+  const[showAuth,setShowAuth]=useState(false);const[isSignup,setIsSignup]=useState(true);
+  const[email,setEmail]=useState("");const[pass,setPass]=useState("");const[name,setName]=useState("");
+  const c=DARK;
+
+  const features=[
+    {icon:"☰",title:"Kanban Board",desc:"Drag and drop tasks across columns. Visualize your workflow at a glance."},
+    {icon:"👥",title:"Team Collaboration",desc:"Invite teammates, assign tasks, comment, and work together seamlessly."},
+    {icon:"📅",title:"Calendar View",desc:"See deadlines on a monthly calendar. Never miss a due date again."},
+    {icon:"📁",title:"Projects & Categories",desc:"Organize work into projects with custom categories and color coding."},
+    {icon:"☑️",title:"Subtasks & Checklists",desc:"Break tasks into smaller steps. Track progress with visual progress bars."},
+    {icon:"🔍",title:"Search & Filters",desc:"Find any task instantly. Filter by project, priority, or status."},
+  ];
+
+  const plans=[
+    {name:"Free",price:"$0",period:"/forever",features:["Up to 3 projects","Unlimited tasks","Kanban board","Calendar view","1 team member"],cta:"Get Started",popular:false},
+    {name:"Pro",price:"$9",period:"/month",features:["Unlimited projects","Unlimited tasks","Team collaboration","Priority support","File attachments","Time tracking"],cta:"Start Free Trial",popular:true},
+    {name:"Business",price:"$25",period:"/month",features:["Everything in Pro","Advanced analytics","Custom branding","API access","Dedicated support","SSO login"],cta:"Contact Sales",popular:false},
+  ];
+
+  return(<div style={{minHeight:"100vh",background:c.bg,fontFamily:ff,color:c.textPrimary,overflowX:"hidden"}}>
+    {/* Nav */}
+    <div style={{padding:"16px 40px",display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:1200,margin:"0 auto"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{width:36,height:36,borderRadius:8,background:c.primary,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"#fff"}}>T</div>
+        <span style={{fontSize:20,fontWeight:700,color:c.textPrimary,letterSpacing:-0.5}}>TaskFlow</span></div>
+      <div style={{display:"flex",gap:10}}>
+        <button onClick={()=>{setIsSignup(false);setShowAuth(true);}} style={{padding:"9px 20px",borderRadius:6,fontSize:13,fontWeight:600,cursor:"pointer",border:`1px solid ${c.border}`,background:"transparent",color:c.textSecondary,fontFamily:ff}}>Log In</button>
+        <button onClick={()=>{setIsSignup(true);setShowAuth(true);}} style={{padding:"9px 20px",borderRadius:6,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:c.primary,color:"#fff",fontFamily:ff}}>Sign Up Free</button></div></div>
+
+    {/* Hero */}
+    <div style={{textAlign:"center",padding:"80px 40px 60px",maxWidth:800,margin:"0 auto"}}>
+      <div style={{display:"inline-block",padding:"6px 16px",borderRadius:20,background:c.primaryMuted,color:c.primary,fontSize:13,fontWeight:600,marginBottom:24}}>✨ Free forever for individuals</div>
+      <h1 style={{fontSize:52,fontWeight:800,lineHeight:1.1,margin:"0 0 20px",letterSpacing:-1.5,background:"linear-gradient(135deg, #e8edf5 0%, #8899b4 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+        Manage Projects.<br/>Collaborate with Teams.<br/>Get Things Done.</h1>
+      <p style={{fontSize:18,color:c.textSecondary,lineHeight:1.6,margin:"0 0 36px",maxWidth:600,marginLeft:"auto",marginRight:"auto"}}>
+        TaskFlow is the simple, powerful project management tool built for freelancers and small teams. Kanban boards, team collaboration, and beautiful design — all in one place.</p>
+      <div style={{display:"flex",gap:12,justifyContent:"center"}}>
+        <button onClick={()=>{setIsSignup(true);setShowAuth(true);}} style={{padding:"14px 32px",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",border:"none",background:c.primary,color:"#fff",fontFamily:ff,boxShadow:"0 4px 16px rgba(46,124,246,0.3)"}}>Start Free — No Credit Card →</button>
+      </div>
+    </div>
+
+    {/* App Preview */}
+    <div style={{maxWidth:1000,margin:"0 auto 80px",padding:"0 40px"}}>
+      <div style={{background:c.bgCard,borderRadius:16,border:`1px solid ${c.border}`,padding:20,boxShadow:"0 24px 64px rgba(0,0,0,0.3)"}}>
+        <div style={{display:"flex",gap:4,marginBottom:16}}><div style={{width:10,height:10,borderRadius:"50%",background:"#ef4444"}}/><div style={{width:10,height:10,borderRadius:"50%",background:"#f59e0b"}}/><div style={{width:10,height:10,borderRadius:"50%",background:"#22c55e"}}/></div>
+        <div style={{display:"flex",gap:12}}>
+          {[{title:"To Do",color:c.primary,items:["Design homepage","Write API docs","Set up CI/CD"]},{title:"In Progress",color:c.accentOrange,items:["Build auth flow","Create dashboard"]},{title:"Done",color:c.accent,items:["Project setup","Brand guidelines"]}].map(col=>(
+            <div key={col.title} style={{flex:1,background:c.bgInput,borderRadius:8,padding:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}><div style={{width:8,height:8,borderRadius:2,background:col.color}}/><span style={{fontSize:11,fontWeight:700,color:c.textPrimary,textTransform:"uppercase",letterSpacing:0.5}}>{col.title}</span></div>
+              {col.items.map(item=><div key={item} style={{padding:"10px 12px",borderRadius:6,background:c.bgCard,border:`1px solid ${c.border}`,marginBottom:6,fontSize:12,color:c.textPrimary,fontWeight:500}}>{item}</div>)}</div>))}
+        </div></div></div>
+
+    {/* Features */}
+    <div style={{maxWidth:1100,margin:"0 auto 80px",padding:"0 40px"}}>
+      <div style={{textAlign:"center",marginBottom:48}}>
+        <h2 style={{fontSize:32,fontWeight:800,margin:"0 0 12px",color:c.textPrimary,letterSpacing:-0.5}}>Everything you need to ship faster</h2>
+        <p style={{fontSize:16,color:c.textSecondary}}>Powerful features, simple interface. No learning curve.</p></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:16}}>
+        {features.map(f=>(
+          <div key={f.title} style={{padding:"28px 24px",borderRadius:12,background:c.bgCard,border:`1px solid ${c.border}`,transition:"border-color 0.2s"}}
+            onMouseEnter={e=>e.currentTarget.style.borderColor=c.primary} onMouseLeave={e=>e.currentTarget.style.borderColor=c.border}>
+            <div style={{fontSize:28,marginBottom:12}}>{f.icon}</div>
+            <h3 style={{fontSize:16,fontWeight:700,margin:"0 0 8px",color:c.textPrimary}}>{f.title}</h3>
+            <p style={{fontSize:13,color:c.textSecondary,lineHeight:1.6,margin:0}}>{f.desc}</p></div>))}</div></div>
+
+    {/* Pricing */}
+    <div style={{maxWidth:1100,margin:"0 auto 80px",padding:"0 40px"}}>
+      <div style={{textAlign:"center",marginBottom:48}}>
+        <h2 style={{fontSize:32,fontWeight:800,margin:"0 0 12px",color:c.textPrimary,letterSpacing:-0.5}}>Simple, transparent pricing</h2>
+        <p style={{fontSize:16,color:c.textSecondary}}>Start free. Upgrade when you need more.</p></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20}}>
+        {plans.map(p=>(
+          <div key={p.name} style={{padding:"32px 28px",borderRadius:12,background:c.bgCard,border:p.popular?`2px solid ${c.primary}`:`1px solid ${c.border}`,position:"relative",display:"flex",flexDirection:"column"}}>
+            {p.popular&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",padding:"4px 14px",borderRadius:12,background:c.primary,color:"#fff",fontSize:11,fontWeight:700}}>Most Popular</div>}
+            <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 4px",color:c.textPrimary}}>{p.name}</h3>
+            <div style={{margin:"12px 0 20px"}}><span style={{fontSize:36,fontWeight:800,color:c.textPrimary}}>{p.price}</span><span style={{fontSize:14,color:c.textMuted}}>{p.period}</span></div>
+            <div style={{flex:1,marginBottom:24}}>{p.features.map(f=><div key={f} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <span style={{color:c.accent,fontSize:14}}>✓</span><span style={{fontSize:13,color:c.textSecondary}}>{f}</span></div>)}</div>
+            <button onClick={()=>{setIsSignup(true);setShowAuth(true);}} style={{width:"100%",padding:"12px",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:ff,border:p.popular?"none":`1px solid ${c.border}`,background:p.popular?c.primary:"transparent",color:p.popular?"#fff":c.textSecondary}}>{p.cta}</button>
+          </div>))}</div></div>
+
+    {/* CTA */}
+    <div style={{textAlign:"center",padding:"60px 40px 80px",maxWidth:600,margin:"0 auto"}}>
+      <h2 style={{fontSize:28,fontWeight:800,margin:"0 0 12px",color:c.textPrimary}}>Ready to get organized?</h2>
+      <p style={{fontSize:16,color:c.textSecondary,marginBottom:28}}>Join thousands of freelancers and teams using TaskFlow to ship faster.</p>
+      <button onClick={()=>{setIsSignup(true);setShowAuth(true);}} style={{padding:"14px 36px",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",border:"none",background:c.primary,color:"#fff",fontFamily:ff}}>Get Started for Free →</button></div>
+
+    {/* Footer */}
+    <div style={{borderTop:`1px solid ${c.border}`,padding:"24px 40px",display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:1200,margin:"0 auto"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:24,height:24,borderRadius:6,background:c.primary,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff"}}>T</div><span style={{fontSize:14,fontWeight:600,color:c.textMuted}}>TaskFlow</span></div>
+      <span style={{fontSize:12,color:c.textMuted}}>© 2026 TaskFlow. All rights reserved.</span></div>
+
+    {/* Auth Modal */}
+    {showAuth&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200}} onClick={()=>setShowAuth(false)}>
+      <div onClick={e=>e.stopPropagation()} style={{width:420,maxWidth:"90vw",padding:"40px",borderRadius:12,background:c.bgCard,border:`1px solid ${c.border}`,boxShadow:"0 24px 64px rgba(0,0,0,0.5)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:32,height:32,borderRadius:8,background:c.primary,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,color:"#fff"}}>T</div><span style={{fontSize:20,fontWeight:700,color:c.textPrimary}}>TaskFlow</span></div>
+        <p style={{color:c.textSecondary,fontSize:14,marginBottom:28,marginTop:4}}>{isSignup?"Create your free account":"Welcome back"}</p>
+        {error&&<div style={{padding:"10px 14px",borderRadius:6,background:"rgba(239,68,68,0.12)",color:c.accentRed,fontSize:13,marginBottom:16}}>{error}</div>}
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          {isSignup&&<Inp label="Full Name" C={c} placeholder="John Doe" value={name} onChange={e=>setName(e.target.value)}/>}
+          <Inp label="Email" C={c} placeholder="you@company.com" type="email" value={email} onChange={e=>setEmail(e.target.value)}/>
+          <Inp label="Password" C={c} placeholder="6+ characters" type="password" value={pass} onChange={e=>setPass(e.target.value)}/>
+          <Btn onClick={()=>{if(isSignup)onLogin("signup",email,pass,name);else onLogin("signin",email,pass);}} disabled={loading} C={c} style={{width:"100%",justifyContent:"center",padding:12,fontSize:14,marginTop:4}}>{loading?"Please wait...":isSignup?"Create Free Account →":"Sign In →"}</Btn></div>
+        <p style={{textAlign:"center",marginTop:20,fontSize:13,color:c.textMuted}}>{isSignup?"Already have an account?":"No account?"}{" "}<span onClick={()=>setIsSignup(!isSignup)} style={{color:c.primary,cursor:"pointer",fontWeight:600}}>{isSignup?"Sign in":"Sign up free"}</span></p>
+      </div></div>}
+  </div>);
 }
 
 // ==================== SIDEBAR ====================
 function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiveProject,theme,toggleTheme,pendingCount,C:c,onOpenSettings}){
   const[profileOpen,setProfileOpen]=useState(false);
-  const nav=[{id:"dashboard",icon:"◫",label:"Dashboard"},{id:"board",icon:"☰",label:"Board"},{id:"calendar",icon:"▦",label:"Calendar"},{id:"projects",icon:"◉",label:"Projects"}];
+  const nav=[{id:"dashboard",icon:"◫",label:"Dashboard"},{id:"board",icon:"☰",label:"Board"},{id:"calendar",icon:"▦",label:"Calendar"},{id:"schedule",icon:"◷",label:"Schedule"},{id:"projects",icon:"◉",label:"Projects"}];
   const menuItems=[
     {icon:"◫",label:"Dashboard",action:()=>{setActive("dashboard");setActiveProject(null);setProfileOpen(false);}},
     {icon:"⚙",label:"Settings",action:()=>{onOpenSettings();setProfileOpen(false);}},
@@ -395,7 +606,7 @@ export default function App(){
   const getProfilesForProject=pid=>{const memIds=(allMembers||[]).filter(m=>m.project_id===pid).map(m=>m.user_id);return(memberProfiles||[]).filter(p=>memIds.includes(p.id));};
 
   if(loading)return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:c.bg,fontFamily:ff}}><div style={{textAlign:"center"}}><div style={{width:48,height:48,borderRadius:12,background:c.primary,margin:"0 auto 16px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:800,color:"#fff"}}>T</div><p style={{color:c.textSecondary}}>Loading TaskFlow...</p></div></div>);
-  if(!session)return<LoginScreen onLogin={handleAuth} loading={saving} error={authError}/>;
+  if(!session)return<LandingPage onLogin={handleAuth} loading={saving} error={authError}/>;
 
   const todo=filtered.filter(t=>t.status==="todo"),prog=filtered.filter(t=>t.status==="progress"),done=filtered.filter(t=>t.status==="done");
 
@@ -403,8 +614,8 @@ export default function App(){
     <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} activeProject={activeProject} setActiveProject={setActiveProject} theme={theme} toggleTheme={toggleTheme} pendingCount={pendingInvitations.length} C={c} onOpenSettings={()=>setShowSettings(true)}/>
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{padding:"16px 32px",borderBottom:`1px solid ${c.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="calendar"?"Calendar":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
-          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="calendar"?"View by deadline":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
+        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="calendar"?"Calendar":active==="schedule"?"Schedule":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
+          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="calendar"?"View by deadline":active==="schedule"?"Manage team shifts & schedules":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
         <div style={{display:"flex",gap:10}}>
           {["board","dashboard","calendar","project-detail"].includes(active)&&projects.length>0&&<Btn onClick={()=>{setNewTask({...newTask,project_id:activeProject?.id||projects[0]?.id,category_id:"",assignee_id:""});setShowNewTask(true);}} C={c}>+ New Task</Btn>}
           {active==="projects"&&<Btn onClick={()=>setShowNewProject(true)} C={c}>+ New Project</Btn>}
@@ -427,6 +638,8 @@ export default function App(){
           <div style={{display:"flex",gap:16,height:"calc(100vh - 220px)"}}><KanbanCol title="To Do" count={todo.length} color={c.primary} tasks={todo} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("todo")} onTaskClick={setSelectedTask} C={c}/><KanbanCol title="In Progress" count={prog.length} color={c.accentOrange} tasks={prog} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("progress")} onTaskClick={setSelectedTask} C={c}/><KanbanCol title="Done" count={done.length} color={c.accent} tasks={done} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("done")} onTaskClick={setSelectedTask} C={c}/></div></div>}
 
         {active==="calendar"&&projects.length>0&&<CalendarView tasks={filtered} C={c}/>}
+
+        {active==="schedule"&&projects.length>0&&<ScheduleView projects={projects} members={allMembers.map(m=>({...m,full_name:(memberProfiles||[]).find(p=>p.id===m.user_id)?.full_name||"User"}))} session={session} C={c}/>}
 
         {active==="project-detail"&&activeProject&&<ProjectDetail project={activeProject} tasks={tasks} categories={categories} members={getMembersForProject(activeProject.id)} onBack={()=>{setActiveProject(null);setActive("projects");}} onTaskClick={setSelectedTask} session={session} onUpdate={loadData} C={c}/>}
 
