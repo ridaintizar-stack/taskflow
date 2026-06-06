@@ -262,122 +262,6 @@ function ProjectDetail({project,tasks,categories,members,onBack,onTaskClick,sess
   </div>);
 }
 
-// ==================== SCHEDULE VIEW ====================
-function ScheduleView({projects,members,session,C:c}){
-  const[weekStart,setWeekStart]=useState(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);return d;});
-  const[shifts,setShifts]=useState([]);const[showAdd,setShowAdd]=useState(false);const[selProject,setSelProject]=useState(projects[0]?.id||"");
-  const[newShift,setNewShift]=useState({title:"",user_id:"",shift_date:"",start_time:"09:00",end_time:"17:00",notes:""});
-  const[saving,setSaving]=useState(false);
-
-  const weekDays=Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(d.getDate()+i);return d;});
-  const hours=Array.from({length:13},(_,i)=>i+7);// 7am to 7pm
-  const fmtDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  const dayNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const today=fmtDate(new Date());
-
-  const loadShifts=useCallback(async()=>{
-    if(!selProject)return;
-    const ws=fmtDate(weekDays[0]),we=fmtDate(weekDays[6]);
-    const{data}=await supabase.from("shifts").select("*").eq("project_id",selProject).gte("shift_date",ws).lte("shift_date",we);
-    setShifts(data||[]);
-  },[selProject,weekStart]);
-
-  useEffect(()=>{loadShifts();},[loadShifts]);
-
-  const prevWeek=()=>{const d=new Date(weekStart);d.setDate(d.getDate()-7);setWeekStart(d);};
-  const nextWeek=()=>{const d=new Date(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);};
-  const goToday=()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);setWeekStart(d);};
-
-  const addShift=async()=>{if(!newShift.title.trim()||!newShift.shift_date||!selProject)return;setSaving(true);
-    await supabase.from("shifts").insert({...newShift,project_id:selProject,user_id:newShift.user_id||session.user.id,color:AVS[(newShift.title.length)%AVS.length],created_by:session.user.id});
-    setNewShift({title:"",user_id:"",shift_date:"",start_time:"09:00",end_time:"17:00",notes:""});setShowAdd(false);await loadShifts();setSaving(false);};
-
-  const delShift=async id=>{await supabase.from("shifts").delete().eq("id",id);await loadShifts();};
-
-  const pMembers=(members||[]).filter(m=>m.project_id===selProject);
-  const profMap={};pMembers.forEach(m=>{profMap[m.user_id]=m;});
-
-  const getShiftsForDayHour=(dateStr,hour)=>shifts.filter(s=>{
-    if(s.shift_date!==dateStr)return false;
-    const sh=parseInt(s.start_time?.split(":")[0]||"0");return sh===hour;});
-
-  const getShiftHeight=(s)=>{const sh=parseInt(s.start_time?.split(":")[0]||"0"),sm=parseInt(s.start_time?.split(":")[1]||"0");
-    const eh=parseInt(s.end_time?.split(":")[0]||"0"),em=parseInt(s.end_time?.split(":")[1]||"0");return Math.max(((eh*60+em)-(sh*60+sm))/60,0.5);};
-
-  return(<div>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <Btn variant="ghost" C={c} onClick={prevWeek} style={{padding:"6px 12px",fontSize:12}}>← Prev</Btn>
-        <Btn variant="ghost" C={c} onClick={goToday} style={{padding:"6px 12px",fontSize:12}}>Today</Btn>
-        <Btn variant="ghost" C={c} onClick={nextWeek} style={{padding:"6px 12px",fontSize:12}}>Next →</Btn>
-        <span style={{fontSize:14,fontWeight:700,color:c.textPrimary,marginLeft:8}}>
-          {weekDays[0].toLocaleDateString("en",{month:"short",day:"numeric"})} — {weekDays[6].toLocaleDateString("en",{month:"short",day:"numeric",year:"numeric"})}</span>
-      </div>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        <select value={selProject} onChange={e=>{setSelProject(e.target.value);}} style={{padding:"8px 12px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:12,fontFamily:ff,outline:"none"}}>
-          {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
-        <Btn C={c} onClick={()=>{setNewShift({...newShift,shift_date:fmtDate(new Date()),user_id:""});setShowAdd(true);}} style={{fontSize:12}}>+ Add Shift</Btn>
-      </div>
-    </div>
-
-    {/* Weekly Grid */}
-    <div style={{background:c.bgCard,borderRadius:10,border:`1px solid ${c.border}`,overflow:"hidden"}}>
-      {/* Day Headers */}
-      <div style={{display:"grid",gridTemplateColumns:"60px repeat(7,1fr)",borderBottom:`1px solid ${c.border}`}}>
-        <div style={{padding:"10px",borderRight:`1px solid ${c.border}`}}/>
-        {weekDays.map((d,i)=>{const ds=fmtDate(d);const isT=ds===today;return(
-          <div key={i} style={{padding:"10px 8px",textAlign:"center",borderRight:i<6?`1px solid ${c.border}`:"none",background:isT?c.primaryMuted:"transparent"}}>
-            <div style={{fontSize:11,fontWeight:700,color:isT?c.primary:c.textMuted,textTransform:"uppercase"}}>{dayNames[d.getDay()]}</div>
-            <div style={{fontSize:16,fontWeight:isT?800:600,color:isT?c.primary:c.textPrimary,marginTop:2}}>{d.getDate()}</div>
-          </div>);})}
-      </div>
-
-      {/* Time Rows */}
-      <div style={{maxHeight:"calc(100vh - 300px)",overflowY:"auto"}}>
-        {hours.map(hour=>(
-          <div key={hour} style={{display:"grid",gridTemplateColumns:"60px repeat(7,1fr)",minHeight:60,borderBottom:`1px solid ${c.border}`}}>
-            <div style={{padding:"4px 8px",borderRight:`1px solid ${c.border}`,display:"flex",alignItems:"flex-start",justifyContent:"flex-end"}}>
-              <span style={{fontSize:11,color:c.textMuted,fontWeight:500}}>{hour>12?`${hour-12}PM`:hour===12?"12PM":`${hour}AM`}</span></div>
-            {weekDays.map((d,di)=>{const ds=fmtDate(d);const dayShifts=getShiftsForDayHour(ds,hour);return(
-              <div key={di} style={{borderRight:di<6?`1px solid ${c.border}`:"none",padding:2,position:"relative",background:ds===today?`${c.primary}05`:"transparent"}}
-                onClick={()=>{if(dayShifts.length===0){setNewShift({...newShift,shift_date:ds,start_time:`${String(hour).padStart(2,"0")}:00`,end_time:`${String(Math.min(hour+1,19)).padStart(2,"0")}:00`});setShowAdd(true);}}}>
-                {dayShifts.map(s=>{const h=getShiftHeight(s);const mem=profMap[s.user_id];return(
-                  <div key={s.id} style={{background:s.color||c.primary,borderRadius:4,padding:"4px 6px",marginBottom:2,minHeight:Math.max(h*56,28),cursor:"pointer",position:"relative",overflow:"hidden"}}
-                    title={`${s.title}\n${s.start_time}–${s.end_time}${mem?`\n${mem.full_name}`:""}`}>
-                    <div style={{fontSize:10,fontWeight:700,color:"#fff",lineHeight:1.3}}>{s.title}</div>
-                    <div style={{fontSize:9,color:"rgba(255,255,255,0.8)"}}>{s.start_time}–{s.end_time}</div>
-                    {mem&&<div style={{fontSize:9,color:"rgba(255,255,255,0.7)"}}>{mem.full_name}</div>}
-                    <span onClick={e=>{e.stopPropagation();delShift(s.id);}} style={{position:"absolute",top:2,right:4,fontSize:10,color:"rgba(255,255,255,0.6)",cursor:"pointer"}}>✕</span>
-                  </div>);})}
-              </div>);})}
-          </div>))}
-      </div>
-    </div>
-
-    {/* Legend */}
-    {shifts.length>0&&<div style={{display:"flex",gap:12,marginTop:14,flexWrap:"wrap"}}>
-      {[...new Set(shifts.map(s=>s.user_id))].map(uid=>{const mem=profMap[uid];const color=shifts.find(s=>s.user_id===uid)?.color||c.primary;
-        return mem?<div key={uid} style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:10,height:10,borderRadius:3,background:color}}/><span style={{fontSize:11,color:c.textSecondary}}>{mem.full_name}</span></div>:null;})}</div>}
-
-    {/* Add Shift Modal */}
-    {showAdd&&<Modal title="Add Shift" onClose={()=>setShowAdd(false)} C={c}>
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <Inp label="Shift Title" C={c} placeholder="e.g. Morning Shift, Client Meeting" value={newShift.title} onChange={e=>setNewShift({...newShift,title:e.target.value})}/>
-        <Inp label="Date" C={c} type="date" value={newShift.shift_date} onChange={e=>setNewShift({...newShift,shift_date:e.target.value})}/>
-        <div style={{display:"flex",gap:12}}>
-          <Inp label="Start Time" C={c} type="time" value={newShift.start_time} onChange={e=>setNewShift({...newShift,start_time:e.target.value})} style={{flex:1}}/>
-          <Inp label="End Time" C={c} type="time" value={newShift.end_time} onChange={e=>setNewShift({...newShift,end_time:e.target.value})} style={{flex:1}}/></div>
-        <Sel label="Assign To" C={c} value={newShift.user_id} onChange={e=>setNewShift({...newShift,user_id:e.target.value})}>
-          <option value="">Assign to me</option>
-          {pMembers.map(m=><option key={m.user_id} value={m.user_id}>{m.full_name}{m.user_id===session.user.id?" (You)":""}</option>)}</Sel>
-        <Inp label="Notes" C={c} placeholder="Optional notes..." value={newShift.notes} onChange={e=>setNewShift({...newShift,notes:e.target.value})}/>
-        <div style={{display:"flex",gap:10,marginTop:8}}>
-          <Btn onClick={addShift} disabled={saving} C={c} style={{flex:1,justifyContent:"center"}}>{saving?"Creating...":"Add Shift"}</Btn>
-          <Btn variant="ghost" C={c} onClick={()=>setShowAdd(false)} style={{flex:1,justifyContent:"center"}}>Cancel</Btn></div>
-      </div></Modal>}
-  </div>);
-}
-
 // ==================== CALENDAR ====================
 function CalendarView({tasks,C:c}){const[cur,setCur]=useState(new Date());const y=cur.getFullYear(),m=cur.getMonth();const name=cur.toLocaleString("default",{month:"long",year:"numeric"});const first=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate(),today=new Date();const days=[];for(let i=0;i<first;i++)days.push(null);for(let i=1;i<=dim;i++)days.push(i);const tf=d=>{if(!d)return[];const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return tasks.filter(t=>t.deadline===ds);};const it=d=>d&&today.getFullYear()===y&&today.getMonth()===m&&today.getDate()===d;
   return(<div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}><Btn variant="ghost" C={c} onClick={()=>setCur(new Date(y,m-1,1))}>← Prev</Btn><h2 style={{margin:0,fontSize:18,fontWeight:700,color:c.textPrimary}}>{name}</h2><Btn variant="ghost" C={c} onClick={()=>setCur(new Date(y,m+1,1))}>Next →</Btn></div>
@@ -513,7 +397,7 @@ function LandingPage({onLogin,loading,error}){
 // ==================== SIDEBAR ====================
 function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiveProject,theme,toggleTheme,pendingCount,C:c,onOpenSettings,teamMembers}){
   const[profileOpen,setProfileOpen]=useState(false);const[teamOpen,setTeamOpen]=useState(true);
-  const nav=[{id:"dashboard",icon:"◫",label:"Dashboard"},{id:"board",icon:"☰",label:"Board"},{id:"calendar",icon:"▦",label:"Calendar"},{id:"schedule",icon:"◷",label:"Schedule"},{id:"projects",icon:"◉",label:"Projects"}];
+  const nav=[{id:"dashboard",icon:"◫",label:"Dashboard"},{id:"board",icon:"☰",label:"Board"},{id:"calendar",icon:"▦",label:"Calendar"},{id:"projects",icon:"◉",label:"Projects"}];
   const menuItems=[
     {icon:"◫",label:"Dashboard",action:()=>{setActive("dashboard");setActiveProject(null);setProfileOpen(false);}},
     {icon:"⚙",label:"Settings",action:()=>{onOpenSettings();setProfileOpen(false);}},
@@ -638,8 +522,8 @@ export default function App(){
     <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} activeProject={activeProject} setActiveProject={setActiveProject} theme={theme} toggleTheme={toggleTheme} pendingCount={pendingInvitations.length} C={c} onOpenSettings={()=>setShowSettings(true)} teamMembers={[...new Map((allMembers||[]).map(m=>({...m,full_name:(memberProfiles||[]).find(p=>p.id===m.user_id)?.full_name||"User"})).map(m=>[m.user_id,m])).values()]}/>
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{padding:"16px 32px",borderBottom:`1px solid ${c.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="calendar"?"Calendar":active==="schedule"?"Schedule":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
-          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="calendar"?"View by deadline":active==="schedule"?"Manage team shifts & schedules":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
+        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="calendar"?"Calendar":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
+          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="calendar"?"View by deadline":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
         <div style={{display:"flex",gap:10}}>
           {["board","dashboard","calendar","project-detail"].includes(active)&&projects.length>0&&<Btn onClick={()=>{setNewTask({...newTask,project_id:activeProject?.id||projects[0]?.id,category_id:"",assignee_id:""});setShowNewTask(true);}} C={c}>+ New Task</Btn>}
           {active==="projects"&&<Btn onClick={()=>setShowNewProject(true)} C={c}>+ New Project</Btn>}
@@ -662,8 +546,6 @@ export default function App(){
           <div style={{display:"flex",gap:16,height:"calc(100vh - 220px)"}}><KanbanCol title="To Do" count={todo.length} color={c.primary} tasks={todo} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("todo")} onTaskClick={setSelectedTask} C={c}/><KanbanCol title="In Progress" count={prog.length} color={c.accentOrange} tasks={prog} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("progress")} onTaskClick={setSelectedTask} C={c}/><KanbanCol title="Done" count={done.length} color={c.accent} tasks={done} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("done")} onTaskClick={setSelectedTask} C={c}/></div></div>}
 
         {active==="calendar"&&projects.length>0&&<CalendarView tasks={filtered} C={c}/>}
-
-        {active==="schedule"&&projects.length>0&&<ScheduleView projects={projects} members={allMembers.map(m=>({...m,full_name:(memberProfiles||[]).find(p=>p.id===m.user_id)?.full_name||"User"}))} session={session} C={c}/>}
 
         {active==="project-detail"&&activeProject&&<ProjectDetail project={activeProject} tasks={tasks} categories={categories} members={getMembersForProject(activeProject.id)} onBack={()=>{setActiveProject(null);setActive("projects");}} onTaskClick={setSelectedTask} session={session} onUpdate={loadData} C={c}/>}
 
