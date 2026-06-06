@@ -601,6 +601,67 @@ function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiv
     </div></div>);
 }
 
+// ==================== PROFILE SETTINGS ====================
+function ProfileSettings({user,setUser,session,theme,setTheme,projects,tasks,handleLogout,onClose,C:c}){
+  const[editName,setEditName]=useState(user?.full_name||"");const[editTitle,setEditTitle]=useState(user?.job_title||"");const[editBio,setEditBio]=useState(user?.bio||"");
+  const[uploading,setUploading]=useState(false);const[savingProfile,setSavingProfile]=useState(false);const[saved,setSaved]=useState(false);
+
+  const uploadAvatar=async(e)=>{const file=e.target.files?.[0];if(!file||!session)return;setUploading(true);
+    const ext=file.name.split(".").pop();const path=`${session.user.id}/avatar.${ext}`;
+    await supabase.storage.from("avatars").upload(path,file,{upsert:true});
+    const{data:{publicUrl}}=supabase.storage.from("avatars").getPublicUrl(path);
+    await supabase.from("profiles").update({avatar_url:publicUrl+`?t=${Date.now()}`}).eq("id",session.user.id);
+    setUser(prev=>({...prev,avatar_url:publicUrl+`?t=${Date.now()}`}));setUploading(false);};
+
+  const saveProfile=async()=>{if(!session)return;setSavingProfile(true);
+    await supabase.from("profiles").update({full_name:editName,job_title:editTitle,bio:editBio}).eq("id",session.user.id);
+    setUser(prev=>({...prev,full_name:editName,job_title:editTitle,bio:editBio}));setSaved(true);setTimeout(()=>setSaved(false),2000);setSavingProfile(false);};
+
+  return(<Modal title="Profile & Settings" onClose={onClose} width={520} C={c}>
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+      <div style={{display:"flex",alignItems:"center",gap:16,padding:"20px",borderRadius:12,background:c.bgHover}}>
+        <div style={{position:"relative"}}>
+          <Avatar name={user?.full_name||"U"} color={AVS[0]} size={64} url={user?.avatar_url}/>
+          <label style={{position:"absolute",bottom:-2,right:-2,width:24,height:24,borderRadius:"50%",background:c.primary,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:12,color:"#fff",border:`2px solid ${c.bgCard}`}}>
+            {uploading?"⏳":"📷"}<input type="file" accept="image/*" onChange={uploadAvatar} style={{display:"none"}}/></label></div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:18,fontWeight:700,color:c.textPrimary}}>{user?.full_name||"User"}</div>
+          {user?.job_title&&<div style={{fontSize:13,color:c.primary,fontWeight:500,marginTop:2}}>{user.job_title}</div>}
+          <div style={{fontSize:12,color:c.textMuted,marginTop:2}}>{user?.email||""}</div></div></div>
+
+      <div>
+        <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Profile Information</label>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Inp label="Full Name" C={c} value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Your name"/>
+          <Inp label="Job Title" C={c} value={editTitle} onChange={e=>setEditTitle(e.target.value)} placeholder="e.g. Product Designer, Developer, CEO"/>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase"}}>Bio</label>
+            <textarea value={editBio} onChange={e=>setEditBio(e.target.value)} placeholder="Tell your team about yourself..." rows={3}
+              style={{padding:"10px 14px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:13,outline:"none",fontFamily:ff,resize:"vertical"}}/></div>
+          <Btn onClick={saveProfile} disabled={savingProfile} C={c} style={{width:"100%",justifyContent:"center"}}>
+            {savingProfile?"Saving...":saved?"✓ Saved!":"Save Profile"}</Btn></div></div>
+
+      <div>
+        <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Appearance</label>
+        <div style={{display:"flex",gap:10}}>
+          <div onClick={()=>{setTheme("light");if(session)supabase.from("profiles").update({theme:"light"}).eq("id",session.user.id);}} style={{flex:1,padding:"16px",borderRadius:10,cursor:"pointer",textAlign:"center",border:`2px solid ${theme==="light"?c.primary:c.border}`,background:theme==="light"?c.primaryMuted:"transparent"}}>
+            <div style={{fontSize:24,marginBottom:6}}>☀️</div><div style={{fontSize:12,fontWeight:600,color:c.textPrimary}}>Light</div></div>
+          <div onClick={()=>{setTheme("dark");if(session)supabase.from("profiles").update({theme:"dark"}).eq("id",session.user.id);}} style={{flex:1,padding:"16px",borderRadius:10,cursor:"pointer",textAlign:"center",border:`2px solid ${theme==="dark"?c.primary:c.border}`,background:theme==="dark"?c.primaryMuted:"transparent"}}>
+            <div style={{fontSize:24,marginBottom:6}}>🌙</div><div style={{fontSize:12,fontWeight:600,color:c.textPrimary}}>Dark</div></div></div></div>
+
+      <div>
+        <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Account</label>
+        <div style={{background:c.bgHover,borderRadius:10,overflow:"hidden"}}>
+          <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${c.border}`}}>
+            <span style={{fontSize:13,color:c.textPrimary}}>Plan</span><Badge text="Free" color={c.accent} bg="rgba(34,197,94,0.12)"/></div>
+          <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${c.border}`}}>
+            <span style={{fontSize:13,color:c.textPrimary}}>Projects</span><span style={{fontSize:13,color:c.textSecondary}}>{projects.length}</span></div>
+          <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:13,color:c.textPrimary}}>Tasks</span><span style={{fontSize:13,color:c.textSecondary}}>{tasks.length}</span></div></div></div>
+      <Btn variant="danger" C={c} onClick={()=>{handleLogout();onClose();}} style={{width:"100%",justifyContent:"center"}}>Log Out</Btn>
+    </div></Modal>);
+}
+
 // ==================== MAIN ====================
 export default function App(){
   const[session,setSession]=useState(null);const[user,setUser]=useState(null);const[loading,setLoading]=useState(true);const[authError,setAuthError]=useState("");
@@ -736,64 +797,6 @@ export default function App(){
           <div style={{display:"flex",gap:8}}>{AVS.map(cl=><div key={cl} onClick={()=>setNewProject({...newProject,color:cl})} style={{width:32,height:32,borderRadius:6,background:cl,cursor:"pointer",border:newProject.color===cl?"2px solid #fff":"2px solid transparent"}}/>)}</div></div>
         <div style={{display:"flex",gap:10,marginTop:8}}><Btn onClick={addProject} disabled={saving} C={c} style={{flex:1,justifyContent:"center"}}>{saving?"Creating...":"Create Project"}</Btn><Btn variant="ghost" C={c} onClick={()=>setShowNewProject(false)} style={{flex:1,justifyContent:"center"}}>Cancel</Btn></div></div></Modal>}
 
-    {showSettings&&<Modal title="Profile & Settings" onClose={()=>setShowSettings(false)} width={520} C={c}>
-      {(()=>{const[editName,setEditName]=useState(user?.full_name||"");const[editTitle,setEditTitle]=useState(user?.job_title||"");const[editBio,setEditBio]=useState(user?.bio||"");const[uploading,setUploading]=useState(false);const[savingProfile,setSavingProfile]=useState(false);const[saved,setSaved]=useState(false);
-        const uploadAvatar=async(e)=>{const file=e.target.files?.[0];if(!file||!session)return;setUploading(true);
-          const ext=file.name.split(".").pop();const path=`${session.user.id}/avatar.${ext}`;
-          await supabase.storage.from("avatars").upload(path,file,{upsert:true});
-          const{data:{publicUrl}}=supabase.storage.from("avatars").getPublicUrl(path);
-          await supabase.from("profiles").update({avatar_url:publicUrl+`?t=${Date.now()}`}).eq("id",session.user.id);
-          setUser(prev=>({...prev,avatar_url:publicUrl+`?t=${Date.now()}`}));setUploading(false);};
-        const saveProfile=async()=>{if(!session)return;setSavingProfile(true);
-          await supabase.from("profiles").update({full_name:editName,job_title:editTitle,bio:editBio}).eq("id",session.user.id);
-          setUser(prev=>({...prev,full_name:editName,job_title:editTitle,bio:editBio}));setSaved(true);setTimeout(()=>setSaved(false),2000);setSavingProfile(false);};
-        return(<div style={{display:"flex",flexDirection:"column",gap:20}}>
-          {/* Avatar Section */}
-          <div style={{display:"flex",alignItems:"center",gap:16,padding:"20px",borderRadius:12,background:c.bgHover}}>
-            <div style={{position:"relative"}}>
-              <Avatar name={user?.full_name||"U"} color={AVS[0]} size={64} url={user?.avatar_url}/>
-              <label style={{position:"absolute",bottom:-2,right:-2,width:24,height:24,borderRadius:"50%",background:c.primary,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:12,color:"#fff",border:`2px solid ${c.bgCard}`}}>
-                {uploading?"⏳":"📷"}<input type="file" accept="image/*" onChange={uploadAvatar} style={{display:"none"}}/></label></div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:18,fontWeight:700,color:c.textPrimary}}>{user?.full_name||"User"}</div>
-              {user?.job_title&&<div style={{fontSize:13,color:c.primary,fontWeight:500,marginTop:2}}>{user.job_title}</div>}
-              <div style={{fontSize:12,color:c.textMuted,marginTop:2}}>{user?.email||""}</div></div></div>
-
-          {/* Edit Fields */}
-          <div>
-            <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Profile Information</label>
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              <Inp label="Full Name" C={c} value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Your name"/>
-              <Inp label="Job Title" C={c} value={editTitle} onChange={e=>setEditTitle(e.target.value)} placeholder="e.g. Product Designer, Developer, CEO"/>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase"}}>Bio</label>
-                <textarea value={editBio} onChange={e=>setEditBio(e.target.value)} placeholder="Tell your team a bit about yourself..." rows={3}
-                  style={{padding:"10px 14px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:13,outline:"none",fontFamily:ff,resize:"vertical"}}/></div>
-              <Btn onClick={saveProfile} disabled={savingProfile} C={c} style={{width:"100%",justifyContent:"center"}}>
-                {savingProfile?"Saving...":saved?"✓ Saved!":"Save Profile"}</Btn>
-            </div></div>
-
-          {/* Appearance */}
-          <div>
-            <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Appearance</label>
-            <div style={{display:"flex",gap:10}}>
-              <div onClick={()=>{setTheme("light");if(session)supabase.from("profiles").update({theme:"light"}).eq("id",session.user.id);}} style={{flex:1,padding:"16px",borderRadius:10,cursor:"pointer",textAlign:"center",border:`2px solid ${theme==="light"?c.primary:c.border}`,background:theme==="light"?c.primaryMuted:"transparent"}}>
-                <div style={{fontSize:24,marginBottom:6}}>☀️</div><div style={{fontSize:12,fontWeight:600,color:c.textPrimary}}>Light</div></div>
-              <div onClick={()=>{setTheme("dark");if(session)supabase.from("profiles").update({theme:"dark"}).eq("id",session.user.id);}} style={{flex:1,padding:"16px",borderRadius:10,cursor:"pointer",textAlign:"center",border:`2px solid ${theme==="dark"?c.primary:c.border}`,background:theme==="dark"?c.primaryMuted:"transparent"}}>
-                <div style={{fontSize:24,marginBottom:6}}>🌙</div><div style={{fontSize:12,fontWeight:600,color:c.textPrimary}}>Dark</div></div></div></div>
-
-          {/* Account Stats */}
-          <div>
-            <label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase",display:"block",marginBottom:8}}>Account</label>
-            <div style={{background:c.bgHover,borderRadius:10,overflow:"hidden"}}>
-              <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${c.border}`}}>
-                <span style={{fontSize:13,color:c.textPrimary}}>Plan</span><Badge text="Free" color={c.accent} bg="rgba(34,197,94,0.12)"/></div>
-              <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${c.border}`}}>
-                <span style={{fontSize:13,color:c.textPrimary}}>Projects</span><span style={{fontSize:13,color:c.textSecondary}}>{projects.length}</span></div>
-              <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{fontSize:13,color:c.textPrimary}}>Tasks</span><span style={{fontSize:13,color:c.textSecondary}}>{tasks.length}</span></div></div></div>
-          <Btn variant="danger" C={c} onClick={()=>{handleLogout();setShowSettings(false);}} style={{width:"100%",justifyContent:"center"}}>Log Out</Btn>
-        </div>);})()}
-    </Modal>}
+    {showSettings&&<ProfileSettings user={user} setUser={setUser} session={session} theme={theme} setTheme={setTheme} projects={projects} tasks={tasks} handleLogout={handleLogout} onClose={()=>setShowSettings(false)} C={c}/>}
   </div>);
 }
