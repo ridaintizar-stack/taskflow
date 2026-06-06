@@ -262,6 +262,104 @@ function ProjectDetail({project,tasks,categories,members,onBack,onTaskClick,sess
   </div>);
 }
 
+// ==================== WELCOME HOME ====================
+function WelcomeHome({user,projects,tasks,C:c,setActive,setActiveProject,setShowNewProject,setShowNewTask}){
+  const hour=new Date().getHours();
+  const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
+  const firstName=(user?.full_name||"there").split(" ")[0];
+  const todo=tasks.filter(t=>t.status==="todo").length;
+  const prog=tasks.filter(t=>t.status==="progress").length;
+  const done=tasks.filter(t=>t.status==="done").length;
+  const today=new Date().toISOString().split("T")[0];
+  const dueToday=tasks.filter(t=>t.deadline===today);
+  const overdue=tasks.filter(t=>t.deadline&&t.deadline<today&&t.status!=="done");
+  const recentTasks=tasks.slice(0,5);
+
+  const quickActions=[
+    {icon:"📁",label:"New Project",desc:"Start something new",action:()=>setShowNewProject(true)},
+    {icon:"✏️",label:"New Task",desc:"Add to your backlog",action:()=>{if(projects.length>0)setShowNewTask(true);else setShowNewProject(true);}},
+    {icon:"☰",label:"Kanban Board",desc:"View your board",action:()=>setActive("board")},
+    {icon:"📅",label:"Calendar",desc:"Check deadlines",action:()=>setActive("calendar")},
+  ];
+
+  return(<div>
+    {/* Hero Greeting */}
+    <div style={{padding:"40px 0 32px"}}>
+      <div style={{fontSize:14,color:c.primary,fontWeight:600,marginBottom:8}}>{greeting} 👋</div>
+      <h1 style={{fontSize:32,fontWeight:800,margin:"0 0 8px",color:c.textPrimary,letterSpacing:-0.5}}>Welcome back, {firstName}!</h1>
+      <p style={{fontSize:15,color:c.textSecondary,margin:0}}>
+        {todo+prog>0?`You have ${todo+prog} active task${todo+prog!==1?"s":""} across ${projects.length} project${projects.length!==1?"s":""}.`:"You're all caught up! Time to start something new."}</p>
+    </div>
+
+    {/* Alerts */}
+    {overdue.length>0&&<div style={{padding:"14px 20px",borderRadius:10,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
+      <span style={{fontSize:18}}>⚠️</span><div><span style={{fontSize:13,fontWeight:600,color:c.accentRed}}>{overdue.length} overdue task{overdue.length!==1?"s":""}</span>
+        <span style={{fontSize:12,color:c.textMuted,marginLeft:8}}>{overdue.map(t=>t.title).join(", ")}</span></div></div>}
+    
+    {dueToday.length>0&&<div style={{padding:"14px 20px",borderRadius:10,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.2)",marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
+      <span style={{fontSize:18}}>📌</span><div><span style={{fontSize:13,fontWeight:600,color:c.accentOrange}}>{dueToday.length} task{dueToday.length!==1?"s":""} due today</span>
+        <span style={{fontSize:12,color:c.textMuted,marginLeft:8}}>{dueToday.map(t=>t.title).join(", ")}</span></div></div>}
+
+    {/* Stats Row */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:28}}>
+      {[{label:"To Do",value:todo,color:c.primary,icon:"📋"},{label:"In Progress",value:prog,color:c.accentOrange,icon:"⚡"},{label:"Completed",value:done,color:c.accent,icon:"✅"},{label:"Projects",value:projects.length,color:"#8b5cf6",icon:"📁"}].map(s=>(
+        <div key={s.label} style={{padding:"20px",borderRadius:12,background:c.bgCard,border:`1px solid ${c.border}`,textAlign:"center"}}>
+          <div style={{fontSize:24,marginBottom:8}}>{s.icon}</div>
+          <div style={{fontSize:28,fontWeight:800,color:s.color,letterSpacing:-1}}>{s.value}</div>
+          <div style={{fontSize:12,color:c.textMuted,marginTop:4,fontWeight:500}}>{s.label}</div></div>))}
+    </div>
+
+    {/* Quick Actions */}
+    <h3 style={{fontSize:14,fontWeight:700,color:c.textSecondary,marginBottom:12,letterSpacing:0.3}}>QUICK ACTIONS</h3>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:28}}>
+      {quickActions.map(a=>(
+        <div key={a.label} onClick={a.action} style={{padding:"20px 16px",borderRadius:12,background:c.bgCard,border:`1px solid ${c.border}`,cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor=c.primary;e.currentTarget.style.transform="translateY(-2px)";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor=c.border;e.currentTarget.style.transform="translateY(0)";}}>
+          <div style={{fontSize:28,marginBottom:8}}>{a.icon}</div>
+          <div style={{fontSize:13,fontWeight:700,color:c.textPrimary,marginBottom:4}}>{a.label}</div>
+          <div style={{fontSize:11,color:c.textMuted}}>{a.desc}</div></div>))}
+    </div>
+
+    <div style={{display:"flex",gap:20}}>
+      {/* Recent Tasks */}
+      <div style={{flex:1}}>
+        <h3 style={{fontSize:14,fontWeight:700,color:c.textSecondary,marginBottom:12,letterSpacing:0.3}}>RECENT TASKS</h3>
+        <div style={{background:c.bgCard,borderRadius:12,border:`1px solid ${c.border}`,overflow:"hidden"}}>
+          {recentTasks.length===0?<div style={{padding:32,textAlign:"center",color:c.textMuted,fontSize:13}}>No tasks yet. Create your first one!</div>:
+          recentTasks.map((t,i)=>(
+            <div key={t.id} style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",
+              borderBottom:i<recentTasks.length-1?`1px solid ${c.border}`:"none"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:16,height:16,borderRadius:4,border:`2px solid ${t.status==="done"?c.accent:c.border}`,
+                  background:t.status==="done"?c.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:9,color:"#fff"}}>{t.status==="done"&&"✓"}</div>
+                <div><div style={{fontSize:13,fontWeight:600,color:c.textPrimary,textDecoration:t.status==="done"?"line-through":"none"}}>{t.title}</div>
+                  <div style={{fontSize:11,color:c.textMuted}}>{t.project_name}</div></div></div>
+              <Badge text={t.priority} color={PRI[t.priority]?.color} bg={PRI[t.priority]?.bg}/></div>))}
+        </div>
+      </div>
+
+      {/* Your Projects */}
+      <div style={{flex:1}}>
+        <h3 style={{fontSize:14,fontWeight:700,color:c.textSecondary,marginBottom:12,letterSpacing:0.3}}>YOUR PROJECTS</h3>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {projects.length===0?<div style={{padding:32,textAlign:"center",color:c.textMuted,fontSize:13,background:c.bgCard,borderRadius:12,border:`1px solid ${c.border}`}}>No projects yet!</div>:
+          projects.slice(0,5).map(p=>{const pt=tasks.filter(t=>t.project_id===p.id),pd=pt.filter(t=>t.status==="done").length;
+            const pct=pt.length>0?Math.round((pd/pt.length)*100):0;
+            return(<div key={p.id} onClick={()=>{setActiveProject(p);setActive("project-detail");}} style={{padding:"16px 18px",borderRadius:12,background:c.bgCard,border:`1px solid ${c.border}`,cursor:"pointer",transition:"border-color 0.15s"}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=p.color} onMouseLeave={e=>e.currentTarget.style.borderColor=c.border}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:3,background:p.color}}/><span style={{fontSize:13,fontWeight:700,color:c.textPrimary}}>{p.name}</span></div>
+                <span style={{fontSize:12,fontWeight:600,color:p.color}}>{pct}%</span></div>
+              <div style={{height:4,borderRadius:2,background:c.bgHover,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,borderRadius:2,background:p.color,transition:"width 0.3s"}}/></div>
+            </div>);})}
+        </div>
+      </div>
+    </div>
+  </div>);
+}
+
 // ==================== CALENDAR ====================
 function CalendarView({tasks,C:c}){const[cur,setCur]=useState(new Date());const y=cur.getFullYear(),m=cur.getMonth();const name=cur.toLocaleString("default",{month:"long",year:"numeric"});const first=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate(),today=new Date();const days=[];for(let i=0;i<first;i++)days.push(null);for(let i=1;i<=dim;i++)days.push(i);const tf=d=>{if(!d)return[];const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return tasks.filter(t=>t.deadline===ds);};const it=d=>d&&today.getFullYear()===y&&today.getMonth()===m&&today.getDate()===d;
   return(<div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}><Btn variant="ghost" C={c} onClick={()=>setCur(new Date(y,m-1,1))}>← Prev</Btn><h2 style={{margin:0,fontSize:18,fontWeight:700,color:c.textPrimary}}>{name}</h2><Btn variant="ghost" C={c} onClick={()=>setCur(new Date(y,m+1,1))}>Next →</Btn></div>
@@ -409,7 +507,7 @@ function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiv
     {icon:"↗",label:"Logout",action:()=>{onLogout();setProfileOpen(false);},danger:true},
   ];
   return(<div style={{width:240,background:c.bgCard,borderRight:`1px solid ${c.border}`,display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
-    <div style={{padding:"20px 20px 16px",display:"flex",alignItems:"center",gap:10,borderBottom:`1px solid ${c.border}`}}>
+    <div onClick={()=>{setActive("home");setActiveProject(null);}} style={{padding:"20px 20px 16px",display:"flex",alignItems:"center",gap:10,borderBottom:`1px solid ${c.border}`,cursor:"pointer",transition:"background 0.1s"}} onMouseEnter={e=>e.currentTarget.style.background=c.bgHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
       <div style={{width:32,height:32,borderRadius:8,background:c.primary,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,color:"#fff"}}>T</div>
       <span style={{fontSize:17,fontWeight:700,color:c.textPrimary,letterSpacing:-0.3}}>TaskFlow</span></div>
     <div style={{padding:"16px 12px 8px"}}>
@@ -461,7 +559,7 @@ function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiv
 // ==================== MAIN ====================
 export default function App(){
   const[session,setSession]=useState(null);const[user,setUser]=useState(null);const[loading,setLoading]=useState(true);const[authError,setAuthError]=useState("");
-  const[active,setActive]=useState("dashboard");const[activeProject,setActiveProject]=useState(null);
+  const[active,setActive]=useState("home");const[activeProject,setActiveProject]=useState(null);
   const[projects,setProjects]=useState([]);const[tasks,setTasks]=useState([]);const[categories,setCategories]=useState([]);const[allMembers,setAllMembers]=useState([]);const[memberProfiles,setMemberProfiles]=useState([]);
   const[pendingInvitations,setPendingInvitations]=useState([]);
   const[showNewTask,setShowNewTask]=useState(false);const[showNewProject,setShowNewProject]=useState(false);const[selectedTask,setSelectedTask]=useState(null);const[dragId,setDragId]=useState(null);
@@ -526,17 +624,19 @@ export default function App(){
     <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} activeProject={activeProject} setActiveProject={setActiveProject} theme={theme} toggleTheme={toggleTheme} pendingCount={pendingInvitations.length} C={c} onOpenSettings={()=>setShowSettings(true)} teamMembers={[...new Map((allMembers||[]).map(m=>({...m,full_name:(memberProfiles||[]).find(p=>p.id===m.user_id)?.full_name||"User"})).map(m=>[m.user_id,m])).values()]}/>
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{padding:"16px 32px",borderBottom:`1px solid ${c.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="calendar"?"Calendar":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
-          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="calendar"?"View by deadline":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
+        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="home"?"Home":active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="calendar"?"Calendar":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
+          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="home"?"Your workspace at a glance":active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="calendar"?"View by deadline":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
         <div style={{display:"flex",gap:10}}>
-          {["board","dashboard","calendar","project-detail"].includes(active)&&projects.length>0&&<Btn onClick={()=>{setNewTask({...newTask,project_id:activeProject?.id||projects[0]?.id,category_id:"",assignee_id:""});setShowNewTask(true);}} C={c}>+ New Task</Btn>}
+          {["board","dashboard","calendar","project-detail","home"].includes(active)&&projects.length>0&&<Btn onClick={()=>{setNewTask({...newTask,project_id:activeProject?.id||projects[0]?.id,category_id:"",assignee_id:""});setShowNewTask(true);}} C={c}>+ New Task</Btn>}
           {active==="projects"&&<Btn onClick={()=>setShowNewProject(true)} C={c}>+ New Project</Btn>}
           {projects.length===0&&active!=="projects"&&<Btn onClick={()=>setActive("projects")} C={c}>Create First Project →</Btn>}</div></div>
 
       <div style={{flex:1,overflow:"auto",padding:"24px 32px"}}>
         <PendingInvitations invitations={pendingInvitations} projects={projects} onAccept={acceptInvite} onDecline={declineInvite} C={c}/>
 
-        {projects.length===0&&active!=="projects"&&<div style={{textAlign:"center",padding:"80px 0"}}><div style={{fontSize:48,marginBottom:16}}>🚀</div><h2 style={{color:c.textPrimary,marginBottom:8}}>Welcome to TaskFlow!</h2><p style={{color:c.textSecondary,marginBottom:24}}>Create your first project.</p><Btn onClick={()=>setActive("projects")} C={c}>Go to Projects →</Btn></div>}
+        {active==="home"&&<WelcomeHome user={user} projects={projects} tasks={tasks} C={c} setActive={setActive} setActiveProject={setActiveProject} setShowNewProject={()=>setShowNewProject(true)} setShowNewTask={()=>{setNewTask({...newTask,project_id:projects[0]?.id||""});setShowNewTask(true);}}/>}
+
+        {projects.length===0&&active!=="projects"&&active!=="home"&&<div style={{textAlign:"center",padding:"80px 0"}}><div style={{fontSize:48,marginBottom:16}}>🚀</div><h2 style={{color:c.textPrimary,marginBottom:8}}>Welcome to TaskFlow!</h2><p style={{color:c.textSecondary,marginBottom:24}}>Create your first project.</p><Btn onClick={()=>setActive("projects")} C={c}>Go to Projects →</Btn></div>}
 
         {active==="dashboard"&&projects.length>0&&<div>
           <div style={{display:"flex",gap:16,marginBottom:24,flexWrap:"wrap"}}><StatCard label="Total Tasks" value={tasks.length} sub={`${done.length} completed`} color={c.primary} C={c}/><StatCard label="In Progress" value={prog.length} sub="Active" color={c.accentOrange} C={c}/><StatCard label="Completed" value={done.length} sub={tasks.length?`${Math.round((done.length/tasks.length)*100)}%`:"0%"} color={c.accent} C={c}/><StatCard label="Projects" value={projects.length} sub="Active" C={c}/></div>
