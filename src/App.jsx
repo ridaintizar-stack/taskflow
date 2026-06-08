@@ -17,12 +17,13 @@ const AVS=["#2e7cf6","#8b5cf6","#ec4899","#f59e0b","#22c55e","#ef4444","#14b8a6"
 const ff="'IBM Plex Sans','Segoe UI',sans-serif";
 
 // ==================== COMPONENTS ====================
+const useMobile=()=>{const[m,setM]=useState(typeof window!=="undefined"&&window.innerWidth<768);useEffect(()=>{const h=()=>setM(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);return m;};
 const Avatar=({name,color,size=32,url})=>(url?<img src={url} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",flexShrink:0}} alt=""/>:<div style={{width:size,height:size,borderRadius:"50%",background:color||AVS[0],display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:700,color:"#fff",flexShrink:0}}>{name?.split(" ").map(n=>n[0]).join("").toUpperCase().slice(0,2)}</div>);
 const Badge=({text,color,bg})=>(<span style={{padding:"3px 10px",borderRadius:4,fontSize:11,fontWeight:600,color,background:bg,whiteSpace:"nowrap"}}>{text}</span>);
 const Btn=({children,onClick,variant="primary",style:s={},disabled,C:t})=>{const c=t||DARK;const vs={primary:{background:disabled?c.textMuted:c.primary,color:"#fff"},ghost:{background:"transparent",color:c.textSecondary,border:`1px solid ${c.border}`},danger:{background:"transparent",color:c.accentRed,border:`1px solid ${c.accentRed}`}};return<button onClick={onClick} disabled={disabled} style={{padding:"9px 18px",borderRadius:6,fontSize:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",border:"none",transition:"all 0.15s",display:"inline-flex",alignItems:"center",gap:6,fontFamily:ff,...vs[variant],...s}}>{children}</button>;};
 const Inp=({label,C:t,...p})=>{const c=t||DARK;return(<div style={{display:"flex",flexDirection:"column",gap:5}}>{label&&<label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase"}}>{label}</label>}<input {...p} style={{padding:"10px 14px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:14,outline:"none",fontFamily:ff,...(p.style||{})}} onFocus={e=>e.target.style.borderColor=c.primary} onBlur={e=>e.target.style.borderColor=c.border}/></div>);};
 const Sel=({label,children,C:t,...p})=>{const c=t||DARK;return(<div style={{display:"flex",flexDirection:"column",gap:5}}>{label&&<label style={{fontSize:12,fontWeight:600,color:c.textSecondary,letterSpacing:0.4,textTransform:"uppercase"}}>{label}</label>}<select {...p} style={{padding:"10px 14px",borderRadius:6,border:`1px solid ${c.border}`,background:c.bgInput,color:c.textPrimary,fontSize:14,outline:"none",fontFamily:ff,...(p.style||{})}}>{children}</select></div>);};
-const Modal=({title,onClose,children,width=480,C:t})=>{const c=t||DARK;return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{width,maxWidth:"92vw",maxHeight:"88vh",overflow:"auto",padding:32,borderRadius:12,background:c.bgCard,border:`1px solid ${c.border}`,boxShadow:"0 24px 64px rgba(0,0,0,0.5)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}><h3 style={{margin:0,fontSize:18,fontWeight:700,color:c.textPrimary}}>{title}</h3><span onClick={onClose} style={{cursor:"pointer",color:c.textMuted,fontSize:20}}>✕</span></div>{children}</div></div>);};
+const Modal=({title,onClose,children,width=480,C:t})=>{const c=t||DARK;const mob=typeof window!=="undefined"&&window.innerWidth<768;return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:mob?"flex-end":"center",justifyContent:"center",zIndex:100}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{width:mob?"100%":width,maxWidth:mob?"100%":"92vw",maxHeight:mob?"92vh":"88vh",overflow:"auto",padding:mob?"24px 20px":32,borderRadius:mob?"16px 16px 0 0":12,background:c.bgCard,border:`1px solid ${c.border}`,boxShadow:"0 24px 64px rgba(0,0,0,0.5)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h3 style={{margin:0,fontSize:mob?16:18,fontWeight:700,color:c.textPrimary}}>{title}</h3><span onClick={onClose} style={{cursor:"pointer",color:c.textMuted,fontSize:20,padding:"4px 8px"}}>✕</span></div>{children}</div></div>);};
 const StatCard=({label,value,sub,color,C:t})=>{const c=t||DARK;return(<div style={{flex:"1 1 200px",padding:"22px 24px",borderRadius:10,background:c.bgCard,border:`1px solid ${c.border}`}}><div style={{fontSize:11,fontWeight:700,color:c.textMuted,textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>{label}</div><div style={{fontSize:28,fontWeight:800,color:color||c.textPrimary,letterSpacing:-1}}>{value}</div><div style={{fontSize:12,color:c.textSecondary,marginTop:4}}>{sub}</div></div>);};
 
 // ==================== SEARCH BAR ====================
@@ -567,7 +568,7 @@ const KanbanCol=({title,count,color,tasks,onDragOver,onDrop,onDragStart,onTaskCl
 function LandingPage({onLogin,loading,error}){
   const[showAuth,setShowAuth]=useState(false);const[isSignup,setIsSignup]=useState(true);
   const[email,setEmail]=useState("");const[pass,setPass]=useState("");const[name,setName]=useState("");
-  const c=DARK;
+  const c=DARK;const mob=useMobile();
 
   const features=[
     {icon:"☰",title:"Kanban Board",desc:"Drag and drop tasks across columns. Visualize your workflow at a glance."},
@@ -595,9 +596,9 @@ function LandingPage({onLogin,loading,error}){
         <button onClick={()=>{setIsSignup(true);setShowAuth(true);}} style={{padding:"9px 20px",borderRadius:6,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:c.primary,color:"#fff",fontFamily:ff}}>Sign Up Free</button></div></div>
 
     {/* Hero */}
-    <div style={{textAlign:"center",padding:"80px 40px 60px",maxWidth:800,margin:"0 auto"}}>
+    <div style={{textAlign:"center",padding:mob?"40px 20px 30px":"80px 40px 60px",maxWidth:800,margin:"0 auto"}}>
       <div style={{display:"inline-block",padding:"6px 16px",borderRadius:20,background:c.primaryMuted,color:c.primary,fontSize:13,fontWeight:600,marginBottom:24}}>✨ Free forever for individuals</div>
-      <h1 style={{fontSize:52,fontWeight:800,lineHeight:1.1,margin:"0 0 20px",letterSpacing:-1.5,background:"linear-gradient(135deg, #e8edf5 0%, #8899b4 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+      <h1 style={{fontSize:mob?30:52,fontWeight:800,lineHeight:1.1,margin:"0 0 20px",letterSpacing:-1.5,background:"linear-gradient(135deg, #e8edf5 0%, #8899b4 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
         Manage Projects.<br/>Collaborate with Teams.<br/>Get Things Done.</h1>
       <p style={{fontSize:18,color:c.textSecondary,lineHeight:1.6,margin:"0 0 36px",maxWidth:600,marginLeft:"auto",marginRight:"auto"}}>
         TaskFlow is the simple, powerful project management tool built for freelancers and small teams. Kanban boards, team collaboration, and beautiful design — all in one place.</p>
@@ -607,7 +608,7 @@ function LandingPage({onLogin,loading,error}){
     </div>
 
     {/* App Preview */}
-    <div style={{maxWidth:1000,margin:"0 auto 80px",padding:"0 40px"}}>
+    {!mob&&<div style={{maxWidth:1000,margin:"0 auto 80px",padding:"0 40px"}}>
       <div style={{background:c.bgCard,borderRadius:16,border:`1px solid ${c.border}`,padding:20,boxShadow:"0 24px 64px rgba(0,0,0,0.3)"}}>
         <div style={{display:"flex",gap:4,marginBottom:16}}><div style={{width:10,height:10,borderRadius:"50%",background:"#ef4444"}}/><div style={{width:10,height:10,borderRadius:"50%",background:"#f59e0b"}}/><div style={{width:10,height:10,borderRadius:"50%",background:"#22c55e"}}/></div>
         <div style={{display:"flex",gap:12}}>
@@ -615,10 +616,10 @@ function LandingPage({onLogin,loading,error}){
             <div key={col.title} style={{flex:1,background:c.bgInput,borderRadius:8,padding:12}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}><div style={{width:8,height:8,borderRadius:2,background:col.color}}/><span style={{fontSize:11,fontWeight:700,color:c.textPrimary,textTransform:"uppercase",letterSpacing:0.5}}>{col.title}</span></div>
               {col.items.map(item=><div key={item} style={{padding:"10px 12px",borderRadius:6,background:c.bgCard,border:`1px solid ${c.border}`,marginBottom:6,fontSize:12,color:c.textPrimary,fontWeight:500}}>{item}</div>)}</div>))}
-        </div></div></div>
+        </div></div></div>}
 
     {/* Features */}
-    <div style={{maxWidth:1100,margin:"0 auto 80px",padding:"0 40px"}}>
+    <div style={{maxWidth:1100,margin:"0 auto 80px",padding:mob?"0 20px":"0 40px"}}>
       <div style={{textAlign:"center",marginBottom:48}}>
         <h2 style={{fontSize:32,fontWeight:800,margin:"0 0 12px",color:c.textPrimary,letterSpacing:-0.5}}>Everything you need to ship faster</h2>
         <p style={{fontSize:16,color:c.textSecondary}}>Powerful features, simple interface. No learning curve.</p></div>
@@ -678,8 +679,8 @@ function LandingPage({onLogin,loading,error}){
 }
 
 // ==================== SIDEBAR ====================
-function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiveProject,theme,toggleTheme,pendingCount,C:c,onOpenSettings,teamMembers}){
-  const[profileOpen,setProfileOpen]=useState(false);const[teamOpen,setTeamOpen]=useState(true);
+function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiveProject,theme,toggleTheme,pendingCount,C:c,onOpenSettings,teamMembers,mobile,sidebarOpen,setSidebarOpen}){
+  const[profileOpen,setProfileOpen]=useState(false);const[teamOpen,setTeamOpen]=useState(!mobile);
   const nav=[{id:"dashboard",icon:"◫",label:"Dashboard"},{id:"board",icon:"☰",label:"Board"},{id:"list",icon:"≡",label:"List"},{id:"calendar",icon:"▦",label:"Calendar"},{id:"activity",icon:"◔",label:"Activity"},{id:"projects",icon:"◉",label:"Projects"}];
   const menuItems=[
     {icon:"◫",label:"Dashboard",action:()=>{setActive("dashboard");setActiveProject(null);setProfileOpen(false);}},
@@ -687,19 +688,27 @@ function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiv
     {icon:theme==="dark"?"☀️":"🌙",label:theme==="dark"?"Light Mode":"Dark Mode",action:()=>{toggleTheme();setProfileOpen(false);}},
     {icon:"↗",label:"Logout",action:()=>{onLogout();setProfileOpen(false);},danger:true},
   ];
-  return(<div style={{width:240,background:c.bgCard,borderRight:`1px solid ${c.border}`,display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}>
-    <div onClick={()=>{setActive("home");setActiveProject(null);}} style={{padding:"20px 20px 16px",display:"flex",alignItems:"center",gap:10,borderBottom:`1px solid ${c.border}`,cursor:"pointer",transition:"background 0.1s"}} onMouseEnter={e=>e.currentTarget.style.background=c.bgHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+  const closeSidebar=()=>{if(mobile)setSidebarOpen(false);};
+  const handleNav=(id)=>{setActive(id);setActiveProject(null);closeSidebar();};
+
+  if(mobile&&!sidebarOpen)return null;
+
+  return(<>
+    {mobile&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:90}}/>}
+    <div style={{width:mobile?280:240,background:c.bgCard,borderRight:`1px solid ${c.border}`,display:"flex",flexDirection:"column",flexShrink:0,height:"100vh",position:mobile?"fixed":"relative",left:0,top:0,zIndex:95,boxShadow:mobile?"4px 0 24px rgba(0,0,0,0.3)":"none"}}>
+    <div onClick={()=>{setActive("home");setActiveProject(null);closeSidebar();}} style={{padding:"20px 20px 16px",display:"flex",alignItems:"center",gap:10,borderBottom:`1px solid ${c.border}`,cursor:"pointer",transition:"background 0.1s"}} onMouseEnter={e=>e.currentTarget.style.background=c.bgHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
       <div style={{width:32,height:32,borderRadius:8,background:c.primary,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,color:"#fff"}}>T</div>
-      <span style={{fontSize:17,fontWeight:700,color:c.textPrimary,letterSpacing:-0.3}}>TaskFlow</span></div>
+      <span style={{fontSize:17,fontWeight:700,color:c.textPrimary,letterSpacing:-0.3}}>TaskFlow</span>
+      {mobile&&<span onClick={e=>{e.stopPropagation();setSidebarOpen(false);}} style={{marginLeft:"auto",fontSize:18,color:c.textMuted,cursor:"pointer"}}>✕</span>}</div>
     <div style={{padding:"16px 12px 8px"}}>
       <p style={{fontSize:10,fontWeight:700,color:c.textMuted,letterSpacing:1,textTransform:"uppercase",padding:"0 8px",marginBottom:6}}>Main Menu</p>
-      {nav.map(n=><div key={n.id} onClick={()=>{setActive(n.id);setActiveProject(null);}} style={{padding:"10px 12px",borderRadius:6,display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginBottom:2,background:active===n.id&&!activeProject?c.primaryMuted:"transparent",color:active===n.id&&!activeProject?c.primary:c.textSecondary}}>
+      {nav.map(n=><div key={n.id} onClick={()=>handleNav(n.id)} style={{padding:"10px 12px",borderRadius:6,display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginBottom:2,background:active===n.id&&!activeProject?c.primaryMuted:"transparent",color:active===n.id&&!activeProject?c.primary:c.textSecondary}}>
         <span style={{fontSize:16,width:20,textAlign:"center"}}>{n.icon}</span><span style={{fontSize:13,fontWeight:active===n.id&&!activeProject?600:500}}>{n.label}</span>
         {n.id==="dashboard"&&pendingCount>0&&<span style={{marginLeft:"auto",background:c.accentRed,color:"#fff",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{pendingCount}</span>}
       </div>)}</div>
     <div style={{padding:"8px 12px",flex:1,overflowY:"auto"}}>
       <p style={{fontSize:10,fontWeight:700,color:c.textMuted,letterSpacing:1,textTransform:"uppercase",padding:"0 8px",marginBottom:6}}>Projects</p>
-      {projects.map(p=><div key={p.id} onClick={()=>{setActiveProject(p);setActive("project-detail");}} style={{padding:"8px 12px",borderRadius:6,display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginBottom:2,background:activeProject?.id===p.id?c.primaryMuted:"transparent"}}>
+      {projects.map(p=><div key={p.id} onClick={()=>{setActiveProject(p);setActive("project-detail");closeSidebar();}} style={{padding:"8px 12px",borderRadius:6,display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginBottom:2,background:activeProject?.id===p.id?c.primaryMuted:"transparent"}}>
         <div style={{width:8,height:8,borderRadius:2,background:p.color}}/><span style={{fontSize:13,color:activeProject?.id===p.id?c.primary:c.textSecondary,fontWeight:activeProject?.id===p.id?600:400}}>{p.name}</span></div>)}
       {/* Team Members */}
       <div style={{marginTop:12}}>
@@ -725,7 +734,7 @@ function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiv
             <div><div style={{fontSize:13,fontWeight:700,color:c.textPrimary}}>{user?.full_name||"User"}</div>
               <div style={{fontSize:11,color:c.textMuted}}>{user?.email||""}</div></div></div></div>
         <div style={{padding:"6px"}}>
-          {menuItems.map((item,i)=><div key={i} onClick={item.action} style={{padding:"9px 12px",borderRadius:6,display:"flex",alignItems:"center",gap:10,cursor:"pointer",transition:"background 0.1s",color:item.danger?c.accentRed:c.textSecondary}} onMouseEnter={e=>e.currentTarget.style.background=c.bgHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          {menuItems.map((item,i)=><div key={i} onClick={()=>{item.action();closeSidebar();}} style={{padding:"9px 12px",borderRadius:6,display:"flex",alignItems:"center",gap:10,cursor:"pointer",transition:"background 0.1s",color:item.danger?c.accentRed:c.textSecondary}} onMouseEnter={e=>e.currentTarget.style.background=c.bgHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <span style={{fontSize:14,width:20,textAlign:"center"}}>{item.icon}</span>
             <span style={{fontSize:13,fontWeight:500}}>{item.label}</span></div>)}
         </div></div>}
@@ -734,7 +743,7 @@ function Sidebar({active,setActive,projects,user,onLogout,activeProject,setActiv
         <div style={{display:"flex",alignItems:"center",gap:10}}><Avatar name={user?.full_name||"U"} color={AVS[0]} size={32} url={user?.avatar_url}/>
           <div><div style={{fontSize:13,fontWeight:600,color:c.textPrimary}}>{user?.full_name||"User"}</div><div style={{fontSize:11,color:c.textMuted}}>Free Plan</div></div></div>
         <span style={{fontSize:12,color:c.textMuted,transform:profileOpen?"rotate(180deg)":"",transition:"transform 0.2s"}}>▲</span></div>
-    </div></div>);
+    </div></div></>);
 }
 
 // ==================== PROFILE SETTINGS ====================
@@ -800,6 +809,7 @@ function ProfileSettings({user,setUser,session,theme,setTheme,projects,tasks,han
 
 // ==================== MAIN ====================
 export default function App(){
+  const mobile=useMobile();const[sidebarOpen,setSidebarOpen]=useState(false);
   const[session,setSession]=useState(null);const[user,setUser]=useState(null);const[loading,setLoading]=useState(true);const[authError,setAuthError]=useState("");
   const[active,setActive]=useState("home");const[activeProject,setActiveProject]=useState(null);
   const[projects,setProjects]=useState([]);const[tasks,setTasks]=useState([]);const[categories,setCategories]=useState([]);const[allMembers,setAllMembers]=useState([]);const[memberProfiles,setMemberProfiles]=useState([]);
@@ -866,17 +876,19 @@ export default function App(){
   const todo=filtered.filter(t=>t.status==="todo"),prog=filtered.filter(t=>t.status==="progress"),done=filtered.filter(t=>t.status==="done");
 
   return(<div style={{display:"flex",minHeight:"100vh",background:c.bg,fontFamily:ff,color:c.textPrimary}}>
-    <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} activeProject={activeProject} setActiveProject={setActiveProject} theme={theme} toggleTheme={toggleTheme} pendingCount={pendingInvitations.length} C={c} onOpenSettings={()=>setShowSettings(true)} teamMembers={[...new Map((allMembers||[]).map(m=>({...m,full_name:(memberProfiles||[]).find(p=>p.id===m.user_id)?.full_name||"User"})).map(m=>[m.user_id,m])).values()]}/>
-    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <div style={{padding:"16px 32px",borderBottom:`1px solid ${c.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><h1 style={{margin:0,fontSize:20,fontWeight:700}}>{active==="home"?"Home":active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="list"?"List View":active==="calendar"?"Calendar":active==="activity"?"Activity":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
-          <p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="home"?"Your workspace at a glance":active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="list"?"Sort, filter & manage all tasks":active==="calendar"?"View by deadline":active==="activity"?"See what everyone's been up to":active==="project-detail"?"Manage team & categories":"Your projects"}</p></div>
+    <Sidebar active={active} setActive={setActive} projects={projects} user={user} onLogout={handleLogout} activeProject={activeProject} setActiveProject={setActiveProject} theme={theme} toggleTheme={toggleTheme} pendingCount={pendingInvitations.length} C={c} onOpenSettings={()=>setShowSettings(true)} teamMembers={[...new Map((allMembers||[]).map(m=>({...m,full_name:(memberProfiles||[]).find(p=>p.id===m.user_id)?.full_name||"User"})).map(m=>[m.user_id,m])).values()]} mobile={mobile} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}/>
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",width:mobile?"100%":"auto"}}>
+      <div style={{padding:mobile?"12px 16px":"16px 32px",borderBottom:`1px solid ${c.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+          {mobile&&<div onClick={()=>setSidebarOpen(true)} style={{fontSize:22,cursor:"pointer",color:c.textSecondary,padding:"4px"}}>☰</div>}
+          <div style={{minWidth:0}}><h1 style={{margin:0,fontSize:mobile?16:20,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{active==="home"?"Home":active==="dashboard"?"Dashboard":active==="board"?"Kanban Board":active==="list"?"List View":active==="calendar"?"Calendar":active==="activity"?"Activity":active==="project-detail"&&activeProject?activeProject.name:"Projects"}</h1>
+          {!mobile&&<p style={{margin:"2px 0 0",fontSize:13,color:c.textSecondary}}>{active==="home"?"Your workspace at a glance":active==="dashboard"?`${tasks.length} tasks across ${projects.length} projects`:active==="board"?"Drag tasks · Click for details":active==="list"?"Sort, filter & manage all tasks":active==="calendar"?"View by deadline":active==="activity"?"See what everyone's been up to":active==="project-detail"?"Manage team & categories":"Your projects"}</p>}</div></div>
         <div style={{display:"flex",gap:10}}>
           {["board","dashboard","calendar","project-detail","home","list"].includes(active)&&projects.length>0&&<Btn onClick={()=>{setNewTask({...newTask,project_id:activeProject?.id||projects[0]?.id,category_id:"",assignee_id:""});setShowNewTask(true);}} C={c}>+ New Task</Btn>}
           {active==="projects"&&<Btn onClick={()=>setShowNewProject(true)} C={c}>+ New Project</Btn>}
           {projects.length===0&&active!=="projects"&&<Btn onClick={()=>setActive("projects")} C={c}>Create First Project →</Btn>}</div></div>
 
-      <div style={{flex:1,overflow:"auto",padding:"24px 32px"}}>
+      <div style={{flex:1,overflow:"auto",padding:mobile?"16px":"24px 32px"}}>
         <PendingInvitations invitations={pendingInvitations} projects={projects} onAccept={acceptInvite} onDecline={declineInvite} C={c}/>
 
         {active==="home"&&<WelcomeHome user={user} projects={projects} tasks={tasks} C={c} setActive={setActive} setActiveProject={setActiveProject} setShowNewProject={()=>setShowNewProject(true)} setShowNewTask={()=>{setNewTask({...newTask,project_id:projects[0]?.id||""});setShowNewTask(true);}}/>}
@@ -892,7 +904,7 @@ export default function App(){
             <div style={{display:"flex",alignItems:"center",gap:8}}>{t.assignee_name&&t.assignee_id&&<Avatar name={t.assignee_name} color={AVS[t.assignee_name.length%AVS.length]} size={22}/>}{t.subtask_count>0&&<span style={{fontSize:11,color:c.textMuted}}>☑{t.subtask_done}/{t.subtask_count}</span>}<Badge text={t.priority} color={PRI[t.priority]?.color} bg={PRI[t.priority]?.bg}/></div></div>)}</div></div>}
 
         {active==="board"&&projects.length>0&&<div><SearchFilterBar search={search} setSearch={setSearch} filterProject={filterProject} setFilterProject={setFilterProject} filterPriority={filterPriority} setFilterPriority={setFilterPriority} projects={projects} C={c}/>
-          <div style={{display:"flex",gap:16,height:"calc(100vh - 220px)"}}><KanbanCol title="To Do" count={todo.length} color={c.primary} tasks={todo} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("todo")} onTaskClick={setSelectedTask} C={c}/><KanbanCol title="In Progress" count={prog.length} color={c.accentOrange} tasks={prog} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("progress")} onTaskClick={setSelectedTask} C={c}/><KanbanCol title="Done" count={done.length} color={c.accent} tasks={done} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("done")} onTaskClick={setSelectedTask} C={c}/></div></div>}
+          <div style={{display:"flex",gap:16,height:mobile?"auto":"calc(100vh - 220px)",overflowX:mobile?"auto":"visible",paddingBottom:mobile?16:0}}><KanbanCol title="To Do" count={todo.length} color={c.primary} tasks={todo} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("todo")} onTaskClick={setSelectedTask} C={c}/><KanbanCol title="In Progress" count={prog.length} color={c.accentOrange} tasks={prog} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("progress")} onTaskClick={setSelectedTask} C={c}/><KanbanCol title="Done" count={done.length} color={c.accent} tasks={done} onDragStart={setDragId} onDragOver={e=>e.preventDefault()} onDrop={handleDrop("done")} onTaskClick={setSelectedTask} C={c}/></div></div>}
 
         {active==="list"&&projects.length>0&&<ListView tasks={filtered} onTaskClick={setSelectedTask} projects={projects} C={c} search={search} setSearch={setSearch} filterProject={filterProject} setFilterProject={setFilterProject} filterPriority={filterPriority} setFilterPriority={setFilterPriority}/>}
 
